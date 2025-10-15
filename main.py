@@ -1,4 +1,5 @@
 def main():
+    data = []
     print("Hello from hoopla!")
 
 
