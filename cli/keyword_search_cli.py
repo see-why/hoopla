@@ -73,9 +73,19 @@ def main() -> None:
                 if q_lower in title.lower():
                     results.append(movie)
 
+            # Sort by id ascending and truncate to at most 5 results
+            def _id_key(m):
+                try:
+                    return int(m.get("id", 0) or 0)
+                except Exception:
+                    return 0
+
+            results_sorted = sorted(results, key=_id_key)
+            results_trunc = results_sorted[:5]
+
             # Print results as a numbered list of titles
-            if results:
-                for i, movie in enumerate(results, start=1):
+            if results_trunc:
+                for i, movie in enumerate(results_trunc, start=1):
                     title = movie.get("title", "<untitled>")
                     print(f"{i}. {title}")
             else:
