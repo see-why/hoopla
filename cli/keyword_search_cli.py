@@ -34,9 +34,70 @@ def main() -> None:
                 try:
                     text = data_path.read_text(encoding="utf-8")
 
-                    # Find top-level movie object blocks between { ... } inside the movies array
-                    # This is a heuristic that works for the provided dataset format.
-                    blocks = re.findall(r"\{(.*?)\}(?=\s*,|\s*\])", text, re.S)
+                    # Find the start of the movies array
+                    arr_start = text.find("movies")
+                    if arr_start == -1:
+                        raise ValueError("movies array not found")
+
+                    # Find the opening bracket for the array
+                    bracket_start = text.find("[", arr_start)
+                    if bracket_start == -1:
+                        raise ValueError("movies array bracket not found")
+
+                    # Scan forward to extract balanced { ... } object blocks
+                    blocks = []
+                    i = bracket_start + 1
+                    n = len(text)
+                    while i < n:
+                        # Skip whitespace and commas
+                        if text[i].isspace() or text[i] == ",":
+                            i += 1
+                            continue
+
+                        if text[i] != "{":
+                            # Stop at end of array
+                            if text[i] == "]":
+                                break
+                            i += 1
+                            continue
+
+                        # Found an object start; scan until balanced
+                        depth = 0
+                        start_idx = i
+                        i += 1
+                        in_string = False
+                        escape = False
+                        while i < n:
+                            ch = text[i]
+                            if in_string:
+                                if escape:
+                                    escape = False
+                                elif ch == "\\":
+                                    escape = True
+                                elif ch == '"':
+                                    in_string = False
+                            else:
+                                if ch == '"':
+                                    in_string = True
+                                elif ch == '{':
+                                    depth += 1
+                                elif ch == '}':
+                                    if depth == 0:
+                                        # include the closing brace
+                                        i += 1
+                                        break
+                                    depth -= 1
+                            i += 1
+
+                        blk = text[start_idx:i]
+                        # strip surrounding braces for compatibility with earlier code
+                        if blk.startswith("{") and blk.endswith("}"):
+                            blk_inner = blk[1:-1]
+                        else:
+                            blk_inner = blk
+
+                        blocks.append(blk_inner)
+
                     data = {"movies": []}
                     for blk in blocks:
                         # Extract id
