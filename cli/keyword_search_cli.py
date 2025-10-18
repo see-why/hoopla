@@ -112,7 +112,7 @@ def main() -> None:
                         title = m_title.group(1).strip() if m_title else ""
 
                         # Extract description if present
-                        m_desc = re.search(r'description\s*:\s*"(.*?)"\s*(?:,|$)', blk, re.S)
+                        m_desc = re.search(r'description\s*:\s*"(.*?)"\s*(?:\s*,|\s*\}|$)', blk, re.S)
                         description = m_desc.group(1).strip() if m_desc else None
 
                         movie = {"id": movie_id, "title": title}
