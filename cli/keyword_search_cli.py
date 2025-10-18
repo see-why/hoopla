@@ -122,7 +122,7 @@ def main() -> None:
                         # Only add if we found a title
                         if title:
                             data["movies"].append(movie)
-                except (ValueError, TypeError):
+                except (ValueError, OSError, re.error, TypeError):
                     print(f"Failed to decode JSON from: {data_path}")
                     return
 
@@ -138,7 +138,7 @@ def main() -> None:
             def _id_key(m):
                 try:
                     return int(m.get("id", 0) or 0)
-                except Exception:
+                except (ValueError, TypeError):
                     return 0
 
             results_sorted = sorted(results, key=_id_key)
