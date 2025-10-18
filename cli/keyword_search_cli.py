@@ -104,7 +104,7 @@ def main() -> None:
                         m_id = re.search(r"\bid\s*:\s*(\d+)", blk)
                         try:
                             movie_id = int(m_id.group(1)) if m_id else None
-                        except Exception:
+                        except (ValueError, TypeError):
                             movie_id = None
 
                         # Extract title (non-greedy up to a closing quote)
@@ -122,7 +122,7 @@ def main() -> None:
                         # Only add if we found a title
                         if title:
                             data["movies"].append(movie)
-                except Exception:
+                except (ValueError, TypeError):
                     print(f"Failed to decode JSON from: {data_path}")
                     return
 
