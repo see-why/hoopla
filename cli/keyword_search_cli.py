@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -32,7 +33,6 @@ def main() -> None:
                 # Fallback: attempt to extract movie-like blocks and fields using regex
                 try:
                     text = data_path.read_text(encoding="utf-8")
-                    import re
 
                     # Find top-level movie object blocks between { ... } inside the movies array
                     # This is a heuristic that works for the provided dataset format.
