@@ -128,10 +128,10 @@ def main() -> None:
 
             movies = data.get("movies", []) if isinstance(data, dict) else []
 
-            q_lower = args.query.lower()
+            q = args.query.strip().lower()
             for movie in movies:
-                title = movie.get("title", "")
-                if q_lower in title.lower():
+                title = (movie.get("title") or "").strip()
+                if q in title.lower():
                     results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
