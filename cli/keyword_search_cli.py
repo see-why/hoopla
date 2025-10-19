@@ -131,7 +131,8 @@ def main() -> None:
             q = args.query.strip().lower()
             for movie in movies:
                 title = (movie.get("title") or "").strip()
-                if q in title.lower():
+                title_lc = title.lower()
+                if q in title_lc:
                     results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
