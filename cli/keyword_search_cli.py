@@ -145,7 +145,9 @@ def main() -> None:
                 title_lc = title.lower()
                 title_clean = title_lc.translate(_punct_trans)
 
-                if q_clean in title_clean:
+                haystack = title_clean if q_clean != q_lower else title_lc
+                needle = q_clean
+                if needle in haystack:
                     results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
