@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import string
 from pathlib import Path
 
 
@@ -128,10 +129,23 @@ def main() -> None:
 
             movies = data.get("movies", []) if isinstance(data, dict) else []
 
-            q_lower = args.query.lower()
+            # Create a translation table for removing punctuation once
+            _punct_trans = str.maketrans("", "", string.punctuation)
+
+            q_raw = args.query.strip()
+            q_lower = q_raw.lower()
+            q_clean = q_lower.translate(_punct_trans)
+            # if removing punctuation leaves the query empty (e.g. it was only
+            # punctuation), fall back to the lowercased raw query
+            if not q_clean:
+                q_clean = q_lower
+
             for movie in movies:
-                title = movie.get("title", "")
-                if q_lower in title.lower():
+                title = (movie.get("title") or "").strip()
+                title_lc = title.lower()
+                title_clean = title_lc.translate(_punct_trans)
+
+                if q_clean in title_clean:
                     results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
