@@ -153,9 +153,11 @@ def main() -> None:
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
-                title_clean = " ".join(title_lc.translate(_punct_trans).split())
-
-                haystack = title_clean if use_clean else title_lc
+                if use_clean:
+                    title_clean = " ".join(title_lc.translate(_punct_trans).split())
+                    haystack = title_clean
+                else:
+                    haystack = title_lc
                 needle = needle_clean
                 if needle in haystack:
                   results.append(movie)
