@@ -135,6 +135,12 @@ def main() -> None:
             _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
 
             q_raw = args.query.strip()
+            # If the query is empty after stripping whitespace, treat as no-op
+            # and return no results to avoid matching every title (since
+            # '' in haystack is always True).
+            if not q_raw:
+                print("No results found.")
+                return
             q_lower = q_raw.lower()
             q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
             # if removing punctuation leaves the query empty (e.g. it was only
