@@ -141,7 +141,8 @@ def main() -> None:
             if not q_raw:
                 print("No results found.")
                 return
-            q_lower = q_raw.lower()
+             
+            q_lower = q_raw.casefold()
             q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
             # if removing punctuation leaves the query empty (e.g. it was only
             # punctuation), we won't use the cleaned query; fall back to the
@@ -151,13 +152,13 @@ def main() -> None:
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
-                title_lc = title.lower()
+                title_lc = title.casefold()
                 title_clean = " ".join(title_lc.translate(_punct_trans).split())
 
                 haystack = title_clean if use_clean else title_lc
                 needle = needle_clean
                 if needle in haystack:
-                    results.append(movie)
+                  results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
             def _id_key(m):
