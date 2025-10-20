@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import string
 from pathlib import Path
 
 
@@ -128,12 +129,37 @@ def main() -> None:
 
             movies = data.get("movies", []) if isinstance(data, dict) else []
 
-            q = args.query.strip().casefold()
+            # Create a translation table that maps punctuation to spaces so
+            # removing punctuation doesn't join words together (e.g. "Star-Wars"
+            # -> "star wars"). Collapse consecutive spaces after translate.
+            _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
+
+            q_raw = args.query.strip()
+            # If the query is empty after stripping whitespace, treat as no-op
+            # and return no results to avoid matching every title (since
+            # '' in haystack is always True).
+            if not q_raw:
+                print("No results found.")
+                return
+            q_lower = q_raw.casefold()
+            q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
+            # if removing punctuation leaves the query empty (e.g. it was only
+            # punctuation), we won't use the cleaned query; fall back to the
+            # lowercased raw query for matching.
+            use_clean = bool(q_clean_raw)
+            needle_clean = q_clean_raw if use_clean else q_lower
+
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
-                if q in title_lc:
-                    results.append(movie)
+                if use_clean:
+                    title_clean = " ".join(title_lc.translate(_punct_trans).split())
+                    haystack = title_clean
+                else:
+                    haystack = title_lc
+                needle = needle_clean
+                if needle in haystack:
+                  results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
             def _id_key(m):
