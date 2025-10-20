@@ -141,7 +141,6 @@ def main() -> None:
             if not q_raw:
                 print("No results found.")
                 return
-             
             q_lower = q_raw.casefold()
             q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
             # if removing punctuation leaves the query empty (e.g. it was only
