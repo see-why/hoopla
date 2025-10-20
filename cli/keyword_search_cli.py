@@ -128,10 +128,10 @@ def main() -> None:
 
             movies = data.get("movies", []) if isinstance(data, dict) else []
 
-            q = args.query.strip().lower()
+            q = args.query.strip().casefold()
             for movie in movies:
                 title = (movie.get("title") or "").strip()
-                title_lc = title.lower()
+                title_lc = title.casefold()
                 if q in title_lc:
                     results.append(movie)
 
