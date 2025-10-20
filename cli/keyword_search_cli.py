@@ -129,24 +129,27 @@ def main() -> None:
 
             movies = data.get("movies", []) if isinstance(data, dict) else []
 
-            # Create a translation table for removing punctuation once
-            _punct_trans = str.maketrans("", "", string.punctuation)
+            # Create a translation table that maps punctuation to spaces so
+            # removing punctuation doesn't join words together (e.g. "Star-Wars"
+            # -> "star wars"). Collapse consecutive spaces after translate.
+            _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
 
             q_raw = args.query.strip()
             q_lower = q_raw.lower()
-            q_clean = q_lower.translate(_punct_trans)
+            q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
             # if removing punctuation leaves the query empty (e.g. it was only
-            # punctuation), fall back to the lowercased raw query
-            if not q_clean:
-                q_clean = q_lower
+            # punctuation), we won't use the cleaned query; fall back to the
+            # lowercased raw query for matching.
+            use_clean = bool(q_clean_raw)
+            needle_clean = q_clean_raw if use_clean else q_lower
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.lower()
-                title_clean = title_lc.translate(_punct_trans)
+                title_clean = " ".join(title_lc.translate(_punct_trans).split())
 
-                haystack = title_clean if q_clean != q_lower else title_lc
-                needle = q_clean
+                haystack = title_clean if use_clean else title_lc
+                needle = needle_clean
                 if needle in haystack:
                     results.append(movie)
 
