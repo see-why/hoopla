@@ -142,24 +142,29 @@ def main() -> None:
                 print("No results found.")
                 return
             q_lower = q_raw.casefold()
-            q_clean_raw = " ".join(q_lower.translate(_punct_trans).split())
-            # if removing punctuation leaves the query empty (e.g. it was only
-            # punctuation), we won't use the cleaned query; fall back to the
-            # lowercased raw query for matching.
-            use_clean = bool(q_clean_raw)
-            needle_clean = q_clean_raw if use_clean else q_lower
+            # Normalize and tokenize the query: map punctuation to spaces,
+            # collapse whitespace, and split into tokens.
+            q_norm = " ".join(q_lower.translate(_punct_trans).split())
+            q_tokens = [t for t in q_norm.split() if t]
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
-                if use_clean:
-                    title_clean = " ".join(title_lc.translate(_punct_trans).split())
-                    haystack = title_clean
-                else:
-                    haystack = title_lc
-                needle = needle_clean
-                if needle in haystack:
-                  results.append(movie)
+                title_norm = " ".join(title_lc.translate(_punct_trans).split())
+                title_tokens = [t for t in title_norm.split() if t]
+
+                # Match if any query token is a substring of any title token
+                matched = False
+                for qt in q_tokens:
+                    for tt in title_tokens:
+                        if qt in tt:
+                            matched = True
+                            break
+                    if matched:
+                        break
+
+                if matched:
+                    results.append(movie)
 
             # Sort by id ascending and truncate to at most 5 results
             def _id_key(m):
