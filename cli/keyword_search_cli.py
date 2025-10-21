@@ -145,23 +145,16 @@ def main() -> None:
             # Normalize and tokenize the query: map punctuation to spaces,
             # collapse whitespace, and split into tokens.
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
-            q_tokens = [t for t in q_norm.split() if t]
+            q_tokens = q_norm.split()
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
                 title_norm = " ".join(title_lc.translate(_punct_trans).split())
-                title_tokens = [t for t in title_norm.split() if t]
+                title_tokens = title_norm.split()
 
                 # Match if any query token is a substring of any title token
-                matched = False
-                for qt in q_tokens:
-                    for tt in title_tokens:
-                        if qt in tt:
-                            matched = True
-                            break
-                    if matched:
-                        break
+                matched = any(qt in tt for qt in q_tokens for tt in title_tokens)
 
                 if matched:
                     results.append(movie)
