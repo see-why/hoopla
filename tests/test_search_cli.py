@@ -78,3 +78,19 @@ def test_no_results():
     rc, out, err = run_search("nope")
     assert rc == 0
     assert "No results found." in out
+
+
+def test_token_partial_match_great_bear():
+    # Verify that a query like "Great Bear" matches a title "Big Bear"
+    movies = [
+        {"id": 1, "title": "Big Bear"},
+        {"id": 2, "title": "Some Other"},
+    ]
+    write_movies(movies)
+
+    rc, out, err = run_search("Great Bear")
+    assert rc == 0
+    lines = [l.strip() for l in out.splitlines() if l.strip()]
+    # find the numbered results
+    numbered = [l for l in lines if l and l[0].isdigit()]
+    assert any("Big Bear" in l for l in numbered)
