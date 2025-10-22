@@ -134,6 +134,19 @@ def main() -> None:
             # -> "star wars"). Collapse consecutive spaces after translate.
             _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
 
+            # Load stop words from data/stopwords.txt (one per line) if it
+            # exists. Use a set for fast membership tests.
+            sw_path = Path(__file__).resolve().parents[1] / "data" / "stopwords.txt"
+            stopwords = set()
+            if sw_path.exists():
+                try:
+                    sw_text = sw_path.read_text(encoding="utf-8")
+                    # splitlines keeps each stop word per line
+                    stopwords = {w.strip().casefold() for w in sw_text.splitlines() if w.strip()}
+                except OSError:
+                    # If reading fails, continue with an empty set
+                    stopwords = set()
+
             q_raw = args.query.strip()
             # If the query is empty after stripping whitespace, treat as no-op
             # and return no results to avoid matching every title (since
@@ -145,13 +158,13 @@ def main() -> None:
             # Normalize and tokenize the query: map punctuation to spaces,
             # collapse whitespace, and split into tokens.
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
-            q_tokens = q_norm.split()
+            q_tokens = [t for t in q_norm.split() if t and t.casefold() not in stopwords]
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
                 title_norm = " ".join(title_lc.translate(_punct_trans).split())
-                title_tokens = title_norm.split()
+                title_tokens = [t for t in title_norm.split() if t and t.casefold() not in stopwords]
 
                 # Match if any query token is a substring of any title token
                 matched = any(qt in tt for qt in q_tokens for tt in title_tokens)
