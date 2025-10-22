@@ -4,6 +4,14 @@ import argparse
 import json
 import re
 import string
+try:
+    from nltk.stem import PorterStemmer
+except Exception:
+    # Provide a no-op fallback stemmer when nltk isn't installed in the
+    # running Python environment (tests may invoke system python).
+    class PorterStemmer:  # type: ignore
+        def stem(self, token: str) -> str:
+            return token
 from pathlib import Path
 
 
@@ -134,6 +142,9 @@ def main() -> None:
             # -> "star wars"). Collapse consecutive spaces after translate.
             _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
 
+            # Initialize stemmer for token normalization
+            stemmer = PorterStemmer()
+
             # Load stop words from data/stopwords.txt (one per line) if it
             # exists. Use a set for fast membership tests.
             sw_path = Path(__file__).resolve().parents[1] / "data" / "stopwords.txt"
@@ -159,12 +170,16 @@ def main() -> None:
             # collapse whitespace, and split into tokens.
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
             q_tokens = [t for t in q_norm.split() if t and t not in stopwords]
+            # Stem query tokens
+            q_tokens = [stemmer.stem(t) for t in q_tokens]
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
                 title_norm = " ".join(title_lc.translate(_punct_trans).split())
                 title_tokens = [t for t in title_norm.split() if t and t not in stopwords]
+                # Stem title tokens
+                title_tokens = [stemmer.stem(t) for t in title_tokens]
 
                 # Match if any query token is a substring of any title token
                 matched = any(qt in tt for qt in q_tokens for tt in title_tokens)
