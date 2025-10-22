@@ -158,7 +158,7 @@ def main() -> None:
             # Normalize and tokenize the query: map punctuation to spaces,
             # collapse whitespace, and split into tokens.
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
-            q_tokens = [t for t in q_norm.split() if t and t.casefold() not in stopwords]
+            q_tokens = [t for t in q_norm.split() if t and t not in stopwords]
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
