@@ -164,7 +164,7 @@ def main() -> None:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
                 title_norm = " ".join(title_lc.translate(_punct_trans).split())
-                title_tokens = [t for t in title_norm.split() if t and t.casefold() not in stopwords]
+                title_tokens = [t for t in title_norm.split() if t and t not in stopwords]
 
                 # Match if any query token is a substring of any title token
                 matched = any(qt in tt for qt in q_tokens for tt in title_tokens)
