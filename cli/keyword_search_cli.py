@@ -17,6 +17,9 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Initialize stemmer for token normalization
+    stemmer = PorterStemmer()
+
     match args.command:
         case "search":
             # Basic search: load movies.json and find titles containing the query
@@ -134,9 +137,6 @@ def main() -> None:
             # removing punctuation doesn't join words together (e.g. "Star-Wars"
             # -> "star wars"). Collapse consecutive spaces after translate.
             _punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
-
-            # Initialize stemmer for token normalization
-            stemmer = PorterStemmer()
 
             # Load stop words from data/stopwords.txt (one per line) if it
             # exists. Use a set for fast membership tests.
