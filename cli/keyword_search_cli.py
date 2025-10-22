@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import string
+from nltk.stem import PorterStemmer
 from pathlib import Path
 
 
@@ -15,6 +16,9 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     args = parser.parse_args()
+
+    # Initialize stemmer for token normalization
+    stemmer = PorterStemmer()
 
     match args.command:
         case "search":
@@ -159,12 +163,16 @@ def main() -> None:
             # collapse whitespace, and split into tokens.
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
             q_tokens = [t for t in q_norm.split() if t and t not in stopwords]
+            # Stem query tokens
+            q_tokens = [stemmer.stem(t) for t in q_tokens]
 
             for movie in movies:
                 title = (movie.get("title") or "").strip()
                 title_lc = title.casefold()
                 title_norm = " ".join(title_lc.translate(_punct_trans).split())
                 title_tokens = [t for t in title_norm.split() if t and t not in stopwords]
+                # Stem title tokens
+                title_tokens = [stemmer.stem(t) for t in title_tokens]
 
                 # Match if any query token is a substring of any title token
                 matched = any(qt in tt for qt in q_tokens for tt in title_tokens)
