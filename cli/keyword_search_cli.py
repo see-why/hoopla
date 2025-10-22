@@ -4,14 +4,7 @@ import argparse
 import json
 import re
 import string
-try:
-    from nltk.stem import PorterStemmer
-except Exception:
-    # Provide a no-op fallback stemmer when nltk isn't installed in the
-    # running Python environment (tests may invoke system python).
-    class PorterStemmer:  # type: ignore
-        def stem(self, token: str) -> str:
-            return token
+from nltk.stem import PorterStemmer
 from pathlib import Path
 
 
