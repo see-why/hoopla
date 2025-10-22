@@ -36,7 +36,11 @@ def backup_and_restore_movies():
 
 
 def run_search(query):
-    cmd = ["python3", "cli/keyword_search_cli.py", "search", query]
+    # Prefer the project's virtualenv python if present so tests run with
+    # the same dependencies (e.g., nltk). Fall back to system python3.
+    venv_python = (PROJECT_ROOT / ".venv" / "bin" / "python")
+    python_exec = str(venv_python) if venv_python.exists() else "python3"
+    cmd = [python_exec, "cli/keyword_search_cli.py", "search", query]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     return proc.returncode, proc.stdout, proc.stderr
 
