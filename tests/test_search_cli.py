@@ -40,6 +40,10 @@ def run_search(query):
     # the same dependencies (e.g., nltk). Fall back to system python3.
     venv_python = (PROJECT_ROOT / ".venv" / "bin" / "python")
     python_exec = str(venv_python) if venv_python.exists() else "python3"
+    # Build the index cache first
+    build_cmd = [python_exec, "cli/keyword_search_cli.py", "build"]
+    subprocess.run(build_cmd, capture_output=True, text=True)
+
     cmd = [python_exec, "cli/keyword_search_cli.py", "search", query]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     return proc.returncode, proc.stdout, proc.stderr
