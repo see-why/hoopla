@@ -182,12 +182,16 @@ def main() -> None:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
 
-            # Iterate query tokens and gather matching document ids up to 5
+            # Iterate query tokens and gather matching document ids up to 5.
+            # Use a set for O(1) membership checks and a list to preserve
+            # insertion order for output.
             seen_ids: list[int] = []
+            seen_set: set[int] = set()
             for qt in q_tokens:
                 ids = idx.get_documents(qt)
                 for i in ids:
-                    if i not in seen_ids:
+                    if i not in seen_set:
+                        seen_set.add(i)
                         seen_ids.append(i)
                     if len(seen_ids) >= 5:
                         break
