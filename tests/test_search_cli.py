@@ -102,3 +102,54 @@ def test_token_partial_match_great_bear():
     # find the numbered results
     numbered = [l for l in lines if l and l[0].isdigit()]
     assert any("Big Bear" in l for l in numbered)
+
+
+def parse_results(out):
+    import re
+    lines = [l.strip() for l in out.splitlines() if l.strip()]
+    numbered = [l for l in lines if l and l[0].isdigit()]
+    results = []
+    for l in numbered:
+        m = re.match(r"^\d+\.\s*\[(\d+)\]\s*(.*)$", l)
+        if m:
+            results.append((int(m.group(1)), m.group(2)))
+        else:
+            # fallback: include raw line
+            results.append((None, l))
+    return results
+
+
+def test_boolean_and_or_not():
+    # Setup a small set of movies to test boolean logic
+    movies = [
+        {"id": 1, "title": "Bear Wizard"},
+        {"id": 2, "title": "Just Bear"},
+        {"id": 3, "title": "Wizard Alone"},
+        {"id": 4, "title": "Terror Bear"},
+        {"id": 5, "title": "Cyborg Saga"},
+    ]
+    write_movies(movies)
+
+    # AND: should return doc 1 only (contains both bear and wizard)
+    rc, out, err = run_search("bear AND wizard")
+    assert rc == 0
+    res = parse_results(out)
+    assert len(res) == 1
+    assert res[0][0] == 1
+
+    # NOT: bear NOT terror -> should exclude id 4, include id 1 and 2 (but truncated to up to 5)
+    rc, out, err = run_search("bear NOT terror")
+    assert rc == 0
+    res = parse_results(out)
+    # ids containing 'bear' are 1,2,4; after NOT terror remove 4 -> 1 and 2 (sorted asc for boolean)
+    ids = [r[0] for r in res]
+    assert 1 in ids and 2 in ids and 4 not in ids
+
+    # OR: bear OR cyborg -> should return ids that contain either term (1,2,4,5) -> sorted asc -> 1,2,4,5 (truncated to 5)
+    rc, out, err = run_search("bear OR cyborg")
+    assert rc == 0
+    res = parse_results(out)
+    ids = [r[0] for r in res]
+    # expect 1 and 2 and 4 and 5 present (may be truncated to <=5)
+    for want in (1, 2, 4, 5):
+        assert want in ids
