@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import re
 from pathlib import Path
 
 import pytest
@@ -105,7 +106,6 @@ def test_token_partial_match_great_bear():
 
 
 def parse_results(out):
-    import re
     lines = [l.strip() for l in out.splitlines() if l.strip()]
     numbered = [l for l in lines if l and l[0].isdigit()]
     results = []
