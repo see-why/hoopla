@@ -260,7 +260,7 @@ def main() -> None:
             while op_stack:
                 output_queue.append(op_stack.pop())
 
-            universe = set(int(k) for k in idx.docmap.keys())
+            universe = set(idx.docmap.keys())
             eval_stack: list[set[int]] = []
             try:
                 for tok in output_queue:
