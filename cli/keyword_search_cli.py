@@ -241,14 +241,11 @@ def main() -> None:
             output_queue: list[str] = []
             op_stack: list[str] = []
 
-            def is_op(x: str) -> bool:
-                return x in prec
-
             for tok in token_stream:
-                if is_op(tok):
+                if tok in prec:
                     while op_stack:
                         top = op_stack[-1]
-                        if not is_op(top):
+                        if top not in prec:
                             break
                         if (top in right_assoc and prec[top] > prec[tok]) or (
                             top not in right_assoc and prec[top] >= prec[tok]
