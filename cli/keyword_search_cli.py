@@ -9,6 +9,10 @@ from pathlib import Path
 
 import heapq
 
+# Common boolean operator words (lowercase) — keep at module scope to avoid
+# reallocating this small set on every search invocation.
+OPERATORS = {"and", "or", "not"}
+
 
 import pickle
 import os
@@ -175,9 +179,6 @@ def main() -> None:
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
             raw_tokens = [t for t in q_norm.split() if t]
 
-            # Recognize boolean operators (AND, OR, NOT) case-insensitively.
-            operators = {"and", "or", "not"}
-
             # Load the cached index
             idx = InvertedIndex()
             try:
@@ -192,7 +193,7 @@ def main() -> None:
             token_stream: list[str] = []
             has_operator = False
             for t in raw_tokens:
-                if t in operators:
+                if t in OPERATORS:
                     token_stream.append(t.upper())
                     has_operator = True
                 else:
