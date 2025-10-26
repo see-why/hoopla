@@ -170,7 +170,7 @@ def main() -> None:
     
     # build subcommand for creating an inverted index cache
     build_parser = subparsers.add_parser("build", help="Build inverted index cache")
-    # tf subcommand to print term frequency for a term in a document
+
     tf_parser = subparsers.add_parser("tf", help="Print term frequency for a term in a document")
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
     tf_parser.add_argument("term", type=str, help="Term to query")
