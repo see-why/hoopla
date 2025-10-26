@@ -210,7 +210,6 @@ def main() -> None:
 
             print("Built index.")
 
-            return
         case "tf":
             # Load cached index and print term frequency for a document-term
             idx = InvertedIndex()
