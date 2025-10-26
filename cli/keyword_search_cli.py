@@ -194,7 +194,18 @@ def main() -> None:
             has_operator = False
             for t in raw_tokens:
                 if t in OPERATORS:
-                    token_stream.append(t.upper())
+                    # If NOT appears infix (e.g. 'bear NOT terror') many users
+                    # mean 'bear AND NOT terror'. Detect that pattern and
+                    # insert an implicit AND when the previous token is an
+                    # operand (not another operator).
+                    up = t.upper()
+                    if up == "NOT" and token_stream and token_stream[-1] not in {
+                        "AND",
+                        "OR",
+                        "NOT",
+                    }:
+                        token_stream.append("AND")
+                    token_stream.append(up)
                     has_operator = True
                 else:
                     if t in stopwords:
@@ -284,6 +295,10 @@ def main() -> None:
 
             if not eval_stack:
                 print("No results found.")
+                return
+
+            if len(eval_stack) != 1:
+                print("Malformed boolean query")
                 return
 
             result_ids = eval_stack.pop()
