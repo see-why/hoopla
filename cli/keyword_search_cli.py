@@ -7,6 +7,8 @@ import string
 from nltk.stem import PorterStemmer
 from pathlib import Path
 
+import heapq
+
 
 import pickle
 import os
@@ -292,7 +294,9 @@ def main() -> None:
                 print("No results found.")
                 return
 
-            results_sorted = sorted(int(i) for i in result_ids)[:5]
+            # Only need the 5 smallest IDs — use heapq.nsmallest to avoid
+            # sorting the entire result set when it's large.
+            results_sorted = heapq.nsmallest(5, (int(i) for i in result_ids))
 
             for rank, did in enumerate(results_sorted, start=1):
                 doc = idx.docmap.get(did) or {}
