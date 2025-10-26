@@ -7,6 +7,12 @@ import string
 from nltk.stem import PorterStemmer
 from pathlib import Path
 
+import heapq
+
+# Common boolean operator words (lowercase) — keep at module scope to avoid
+# reallocating this small set on every search invocation.
+OPERATORS = {"and", "or", "not"}
+
 
 import pickle
 import os
@@ -171,8 +177,7 @@ def main() -> None:
 
             q_lower = q_raw.casefold()
             q_norm = " ".join(q_lower.translate(_punct_trans).split())
-            q_tokens = [t for t in q_norm.split() if t and t not in stopwords]
-            q_tokens = [stemmer.stem(t) for t in q_tokens]
+            raw_tokens = [t for t in q_norm.split() if t]
 
             # Load the cached index
             idx = InvertedIndex()
@@ -182,28 +187,131 @@ def main() -> None:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
 
-            # Iterate query tokens and gather matching document ids up to 5.
-            # Use a set for O(1) membership checks and a list to preserve
-            # insertion order for output.
-            seen_ids: list[int] = []
-            seen_set: set[int] = set()
-            for qt in q_tokens:
-                ids = idx.get_documents(qt)
-                for i in ids:
-                    if i not in seen_set:
-                        seen_set.add(i)
-                        seen_ids.append(i)
-                    if len(seen_ids) >= 5:
-                        break
-                if len(seen_ids) >= 5:
-                    break
+            # Prepare token stream where operands are stemmed terms and
+            # operators are upper-cased strings 'AND','OR','NOT'. We must
+            # not remove operator words as stopwords here.
+            token_stream: list[str] = []
+            has_operator = False
+            for t in raw_tokens:
+                if t in OPERATORS:
+                    # If NOT appears infix (e.g. 'bear NOT terror') many users
+                    # mean 'bear AND NOT terror'. Detect that pattern and
+                    # insert an implicit AND when the previous token is an
+                    # operand (not another operator).
+                    up = t.upper()
+                    if up == "NOT" and token_stream and token_stream[-1] not in {
+                        "AND",
+                        "OR",
+                        "NOT",
+                    }:
+                        token_stream.append("AND")
+                    token_stream.append(up)
+                    has_operator = True
+                else:
+                    if t in stopwords:
+                        # skip stopwords in operands
+                        continue
+                    token_stream.append(stemmer.stem(t))
 
-            if not seen_ids:
+            if not token_stream:
                 print("No results found.")
                 return
 
-            # Print results as numbered list with titles and ids
-            for rank, did in enumerate(seen_ids, start=1):
+            # If there are no operators, fall back to the previous
+            # behavior: iterate tokens and collect union of postings in
+            # token order until we have 5 results.
+            if not has_operator:
+                seen_ids: list[int] = []
+                seen_set: set[int] = set()
+                for qt in token_stream:
+                    ids = idx.get_documents(qt)
+                    for i in ids:
+                        if i not in seen_set:
+                            seen_set.add(i)
+                            seen_ids.append(i)
+                        if len(seen_ids) >= 5:
+                            break
+                    if len(seen_ids) >= 5:
+                        break
+
+                if not seen_ids:
+                    print("No results found.")
+                    return
+
+                for rank, did in enumerate(seen_ids, start=1):
+                    doc = idx.docmap.get(did) or {}
+                    title = doc.get("title", "<untitled>")
+                    print(f"{rank}. [{did}] {title}")
+
+                return
+
+            # Otherwise parse boolean expression (infix) to RPN using
+            # shunting-yard and evaluate using set semantics.
+            prec = {"NOT": 3, "AND": 2, "OR": 1}
+            right_assoc = {"NOT"}
+            output_queue: list[str] = []
+            op_stack: list[str] = []
+
+            for tok in token_stream:
+                if tok in prec:
+                    while op_stack:
+                        top = op_stack[-1]
+                        if top not in prec:
+                            break
+                        if (top in right_assoc and prec[top] > prec[tok]) or (
+                            top not in right_assoc and prec[top] >= prec[tok]
+                        ):
+                            output_queue.append(op_stack.pop())
+                        else:
+                            break
+                    op_stack.append(tok)
+                else:
+                    output_queue.append(tok)
+
+            while op_stack:
+                output_queue.append(op_stack.pop())
+
+            universe = set(idx.docmap.keys())
+            eval_stack: list[set[int]] = []
+            try:
+                for tok in output_queue:
+                    if tok == "NOT":
+                        a = eval_stack.pop()
+                        eval_stack.append(universe - a)
+                    elif tok == "AND":
+                        b = eval_stack.pop()
+                        a = eval_stack.pop()
+                        eval_stack.append(a & b)
+                    elif tok == "OR":
+                        b = eval_stack.pop()
+                        a = eval_stack.pop()
+                        eval_stack.append(a | b)
+                    else:
+                        ids = set(idx.get_documents(tok))
+                        eval_stack.append(ids)
+            except IndexError:
+                print("Malformed boolean query")
+                return
+
+            if not eval_stack:
+                print("No results found.")
+                return
+
+            if len(eval_stack) != 1:
+                print("Malformed boolean query")
+                return
+
+            result_ids = eval_stack.pop()
+
+            if not result_ids:
+                print("No results found.")
+                return
+
+            # Only need the 5 smallest IDs — use heapq.nsmallest to avoid
+            # sorting the entire result set when it's large.
+            results_sorted = heapq.nsmallest(5, (int(i) for i in result_ids))
+
+            for rank, did in enumerate(results_sorted, start=1):
                 doc = idx.docmap.get(did) or {}
                 title = doc.get("title", "<untitled>")
                 print(f"{rank}. [{did}] {title}")
