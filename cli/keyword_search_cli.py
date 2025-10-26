@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import Counter
 
 import heapq
+import math
 
 # Common boolean operator words (lowercase) — keep at module scope to avoid
 # reallocating this small set on every search invocation.
@@ -175,6 +176,10 @@ def main() -> None:
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
     tf_parser.add_argument("term", type=str, help="Term to query")
 
+    # idf subcommand to print inverse document frequency for a given term
+    idf_parser = subparsers.add_parser("idf", help="Print inverse document frequency for a term")
+    idf_parser.add_argument("term", type=str, help="Term to query")
+
     args = parser.parse_args()
 
     # Initialize stemmer for token normalization
@@ -226,6 +231,26 @@ def main() -> None:
                 return
 
             print(str(tf_val))
+            return
+        case "idf":
+            # Load cached index and compute inverse document frequency for a term
+            idx = InvertedIndex()
+            try:
+                idx.load()
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+
+            term = args.term
+            # number of documents in the corpus
+            N = len(idx.docmap)
+            # document frequency for the normalized term
+            df = len(idx.get_documents(term))
+            # Use smoothed IDF formula: log((N + 1) / (df + 1)) to avoid
+            # division by zero and provide a small amount of smoothing.
+            idf = math.log((N + 1) / (df + 1))
+
+            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
