@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+# Pre-compile the result-parsing regex to avoid recompiling on each call
+RESULT_RE = re.compile(r"^\d+\.\s*\[(\d+)\]\s*(.*)$")
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 MOVIES_PATH = DATA_DIR / "movies.json"
@@ -110,7 +113,7 @@ def parse_results(out):
     numbered = [l for l in lines if l and l[0].isdigit()]
     results = []
     for l in numbered:
-        m = re.match(r"^\d+\.\s*\[(\d+)\]\s*(.*)$", l)
+        m = RESULT_RE.match(l)
         if m:
             results.append((int(m.group(1)), m.group(2)))
         else:
