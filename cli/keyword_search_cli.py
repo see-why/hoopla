@@ -6,6 +6,7 @@ import re
 import string
 from nltk.stem import PorterStemmer
 from pathlib import Path
+from collections import Counter
 
 import heapq
 
@@ -29,6 +30,8 @@ class InvertedIndex:
     def __init__(self) -> None:
         self.index: dict[str, set[int]] = {}
         self.docmap: dict[int, dict] = {}
+        # Term frequencies: doc_id -> Counter(token -> count)
+        self.term_frequencies: dict[int, Counter] = {}
 
         # Normalization helpers
         self._punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
@@ -55,6 +58,9 @@ class InvertedIndex:
         for tok in tokens:
             postings = self.index.setdefault(tok, set())
             postings.add(int(doc_id))
+            # update term frequencies for this document
+            ctr = self.term_frequencies.setdefault(int(doc_id), Counter())
+            ctr[tok] += 1
 
     def get_documents(self, term: str) -> list[int]:
         """Return sorted list of document ids for a token/term."""
@@ -63,6 +69,29 @@ class InvertedIndex:
         key = self.stemmer.stem(term.casefold())
         ids = self.index.get(key, set())
         return sorted(int(i) for i in ids)
+
+    def get_tf(self, doc_id: str | int, term: str) -> int:
+        """Return term frequency for a single-token term in a given document.
+
+        doc_id may be an int or a string representing an int. The term is
+        tokenized using the same normalization pipeline; it must resolve to
+        exactly one token, otherwise a ValueError is raised.
+        """
+        try:
+            mid = int(doc_id)
+        except (ValueError, TypeError):
+            raise ValueError("doc_id must be an integer or integer string")
+
+        if not isinstance(term, str):
+            raise ValueError("term must be a string")
+
+        norm = " ".join(term.casefold().translate(self._punct_trans).split())
+        toks = [t for t in norm.split() if t and t not in self.stopwords]
+        if len(toks) != 1:
+            raise ValueError("term must be a single token after normalization")
+
+        tok = self.stemmer.stem(toks[0])
+        return int(self.term_frequencies.get(mid, Counter()).get(tok, 0))
 
     def build(self, movies: list[dict]) -> None:
         """Build the index and docmap from a list of movie dicts."""
@@ -101,6 +130,11 @@ class InvertedIndex:
         with open(docmap_path, "wb") as fh:
             pickle.dump(self.docmap, fh, protocol=pickle.HIGHEST_PROTOCOL)
 
+        # Save term frequencies
+        tf_path = base / "term_frequencies.pkl"
+        with open(tf_path, "wb") as fh:
+            pickle.dump(self.term_frequencies, fh, protocol=pickle.HIGHEST_PROTOCOL)
+
     def load(self, cache_dir: str | Path = None) -> None:
         """Load index and docmap from cache/index.pkl and cache/docmap.pkl.
 
@@ -119,6 +153,13 @@ class InvertedIndex:
         with open(docmap_path, "rb") as fh:
             self.docmap = pickle.load(fh)
 
+        # Load term frequencies
+        tf_path = base / "term_frequencies.pkl"
+        if not tf_path.exists():
+            raise FileNotFoundError(f"Cache files not found at {base}")
+        with open(tf_path, "rb") as fh:
+            self.term_frequencies = pickle.load(fh)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -130,6 +171,10 @@ def main() -> None:
     # build subcommand for creating an inverted index cache
     build_parser = subparsers.add_parser("build", help="Build inverted index cache")
 
+    tf_parser = subparsers.add_parser("tf", help="Print term frequency for a term in a document")
+    tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tf_parser.add_argument("term", type=str, help="Term to query")
+
     args = parser.parse_args()
 
     # Initialize stemmer for token normalization
@@ -138,7 +183,18 @@ def main() -> None:
     match args.command:
         case "build":
             # load movies file
-            data_path = Path(__file__).resolve().parents[1] / "data" / "movies.json"
+            data_dir = Path(__file__).resolve().parents[1] / "data"
+            data_path = data_dir / "movies.json"
+            # If movies.json is missing, try to find any JSON file in data
+            if not data_path.exists():
+                candidates = sorted(data_dir.glob("*.json"))
+                if candidates:
+                    # pick the first candidate and warn
+                    data_path = candidates[0]
+                    print(f"Warning: movies.json not found, using {data_path.name}")
+                else:
+                    print(f"Failed to load movies data: {data_path} does not exist")
+                    return
             try:
                 with open(data_path, "r", encoding="utf-8") as fh:
                     data = json.load(fh)
@@ -154,6 +210,22 @@ def main() -> None:
 
             print("Built index.")
 
+        case "tf":
+            # Load cached index and print term frequency for a document-term
+            idx = InvertedIndex()
+            try:
+                idx.load()
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+
+            try:
+                tf_val = idx.get_tf(args.doc_id, args.term)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            print(str(tf_val))
             return
         case "search":
             # Use cached inverted index to answer the query
