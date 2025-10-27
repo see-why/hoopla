@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import Counter
 
 import heapq
+import math
 
 # Common boolean operator words (lowercase) — keep at module scope to avoid
 # reallocating this small set on every search invocation.
@@ -175,6 +176,15 @@ def main() -> None:
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
     tf_parser.add_argument("term", type=str, help="Term to query")
 
+    # idf subcommand to print inverse document frequency for a given term
+    idf_parser = subparsers.add_parser("idf", help="Print inverse document frequency for a term")
+    idf_parser.add_argument("term", type=str, help="Term to query")
+
+    # tfidf subcommand to compute TF-IDF score for a term in a document
+    tfidf_parser = subparsers.add_parser("tfidf", help="Print TF-IDF score for a term in a document")
+    tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tfidf_parser.add_argument("term", type=str, help="Term to query")
+
     args = parser.parse_args()
 
     # Initialize stemmer for token normalization
@@ -226,6 +236,49 @@ def main() -> None:
                 return
 
             print(str(tf_val))
+            return
+        case "idf":
+            # Load cached index and compute inverse document frequency for a term
+            idx = InvertedIndex()
+            try:
+                idx.load()
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+
+            term = args.term
+            # number of documents in the corpus
+            N = len(idx.docmap)
+            # document frequency for the normalized term
+            df = len(idx.get_documents(term))
+            # Use smoothed IDF formula: log((N + 1) / (df + 1)) to avoid
+            # division by zero and provide a small amount of smoothing.
+            idf = math.log((N + 1) / (df + 1))
+
+            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+            return
+        case "tfidf":
+            # Load cached index and compute TF-IDF for a document-term pair
+            idx = InvertedIndex()
+            try:
+                idx.load()
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+
+            try:
+                tf_val = idx.get_tf(args.doc_id, args.term)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            N = len(idx.docmap)
+            df = len(idx.get_documents(args.term))
+            idf = math.log((N + 1) / (df + 1))
+
+            tf_idf = tf_val * idf
+
+            print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
