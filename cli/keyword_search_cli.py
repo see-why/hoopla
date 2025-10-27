@@ -274,7 +274,7 @@ def main() -> None:
 
             N = len(idx.docmap)
             df = len(idx.get_documents(args.term))
-            idf = math.log((N + 1) / (df + 1)) if N >= 0 else 0.0
+            idf = math.log((N + 1) / (df + 1))
 
             tf_idf = tf_val * idf
 
