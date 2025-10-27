@@ -278,7 +278,7 @@ def main() -> None:
 
             tf_idf = tf_val * idf
 
-            print(f"TF-IDF score of '{args.term}'2.14 in document '{args.doc_id}': {tf_idf:.2f}")
+            print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
