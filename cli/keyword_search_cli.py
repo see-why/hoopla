@@ -191,6 +191,13 @@ class InvertedIndex:
         return float(math.log((N - df + 0.5) / (df + 0.5) + 1))
 
 
+def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
+    """Load index from disk and return BM25 IDF for the given term."""
+    idx = InvertedIndex()
+    idx.load(cache_dir)
+    return idx.get_bm25_idf(term)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
