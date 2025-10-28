@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import sys
 import json
 import re
 import string
@@ -213,11 +214,21 @@ def main() -> None:
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Term to query")
 
-    # bm25idf subcommand to print BM25-style IDF for a term
-    bm25_parser = subparsers.add_parser("bm25idf", help="Print BM25-style IDF for a term")
-    bm25_parser.add_argument("term", type=str, help="Term to query")
+    bm25_idf_parser = subparsers.add_parser(
+        'bm25idf', help="Get BM25 IDF score for a given term"
+    )
+    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
+    print("DEBUG ARGV:", sys.argv)
     args = parser.parse_args()
+    print("DEBUG ARGS:", args)
+
+
+def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
+    """Load index from disk and return BM25 IDF for the given term."""
+    idx = InvertedIndex()
+    idx.load(cache_dir)
+    return idx.get_bm25_idf(term)
 
     # Initialize stemmer for token normalization
     stemmer = PorterStemmer()
@@ -313,21 +324,17 @@ def main() -> None:
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
             return
         case "bm25idf":
-            # Load cached index and compute BM25-style IDF for a term
-            idx = InvertedIndex()
+            # Use bm25_idf_command helper to compute score and print it
             try:
-                idx.load()
+                bm25idf = bm25_idf_command(args.term)
             except FileNotFoundError:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
-
-            try:
-                score = idx.get_bm25_idf(args.term)
             except ValueError as e:
                 print(f"Error: {e}")
                 return
 
-            print(f"BM25 IDF of '{args.term}': {score:.2f}")
+            print(f"BM25 IDF score of '{args.term}': {bm25idf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
