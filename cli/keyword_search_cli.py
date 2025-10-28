@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import sys
 import json
 import re
 import string
@@ -226,9 +225,7 @@ def main() -> None:
     )
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
-    print("DEBUG ARGV:", sys.argv)
     args = parser.parse_args()
-    print("DEBUG ARGS:", args)
 
     # Initialize stemmer for token normalization
     stemmer = PorterStemmer()
