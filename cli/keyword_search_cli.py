@@ -161,6 +161,41 @@ class InvertedIndex:
         with open(tf_path, "rb") as fh:
             self.term_frequencies = pickle.load(fh)
 
+    def get_bm25_idf(self, term: str) -> float:
+        """Compute BM25-style IDF for a single-term query.
+
+        Uses formula: log((N - df + 0.5) / (df + 0.5) + 1)
+        where N is total number of documents and df is document frequency.
+
+        The term is normalized with the same pipeline as indexing and must
+        resolve to a single token; otherwise ValueError is raised.
+        """
+        if not isinstance(term, str):
+            raise ValueError("term must be a string")
+
+        # Normalize like in indexing
+        norm = " ".join(term.casefold().translate(self._punct_trans).split())
+        toks = [t for t in norm.split() if t and t not in self.stopwords]
+        if len(toks) != 1:
+            raise ValueError("term must be a single token after normalization")
+
+        tok = self.stemmer.stem(toks[0])
+        df = len(self.index.get(tok, set()))
+        N = len(self.docmap)
+
+        if N <= 0:
+            return 0.0
+        if df > N:
+            raise ValueError("Document frequency cannot exceed total documents")
+        # BM25 idf variant (with +0.5 smoothing)
+        return float(math.log((N - df + 0.5) / (df + 0.5) + 1))
+
+def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
+    """Load index from disk and return BM25 IDF for the given term."""
+    idx = InvertedIndex()
+    idx.load(cache_dir)
+    return idx.get_bm25_idf(term)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -184,6 +219,11 @@ def main() -> None:
     tfidf_parser = subparsers.add_parser("tfidf", help="Print TF-IDF score for a term in a document")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Term to query")
+
+    bm25_idf_parser = subparsers.add_parser(
+        'bm25idf', help="Get BM25 IDF score for a given term"
+    )
+    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
     args = parser.parse_args()
 
@@ -279,6 +319,19 @@ def main() -> None:
             tf_idf = tf_val * idf
 
             print(f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}")
+            return
+        case "bm25idf":
+            # Use bm25_idf_command helper to compute score and print it
+            try:
+                bm25idf = bm25_idf_command(args.term, cache_dir=args.cache_dir)
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            print(f"BM25 IDF score of '{args.term}': {bm25idf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
