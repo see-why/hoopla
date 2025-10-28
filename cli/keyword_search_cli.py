@@ -322,7 +322,7 @@ def main() -> None:
         case "bm25idf":
             # Use bm25_idf_command helper to compute score and print it
             try:
-                bm25idf = bm25_idf_command(args.term)
+                bm25idf = bm25_idf_command(args.term, cache_dir=args.cache_dir)
             except FileNotFoundError:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
