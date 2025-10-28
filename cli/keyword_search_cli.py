@@ -223,13 +223,6 @@ def main() -> None:
     args = parser.parse_args()
     print("DEBUG ARGS:", args)
 
-
-def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
-    """Load index from disk and return BM25 IDF for the given term."""
-    idx = InvertedIndex()
-    idx.load(cache_dir)
-    return idx.get_bm25_idf(term)
-
     # Initialize stemmer for token normalization
     stemmer = PorterStemmer()
 
