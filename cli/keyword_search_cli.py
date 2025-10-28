@@ -185,11 +185,10 @@ class InvertedIndex:
 
         if N <= 0:
             return 0.0
-
+        if df > N:
+            raise ValueError("Document frequency cannot exceed total documents")
         # BM25 idf variant (with +0.5 smoothing)
         return float(math.log((N - df + 0.5) / (df + 0.5) + 1))
-
-
 def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
     """Load index from disk and return BM25 IDF for the given term."""
     idx = InvertedIndex()
