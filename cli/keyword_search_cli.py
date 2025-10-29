@@ -10,6 +10,13 @@ from collections import Counter
 
 import heapq
 import math
+try:
+    # When executed as a script, the working directory / sys.path[0]
+    # will be the `cli/` directory; prefer the local cli.search_utils
+    # module if present, otherwise fall back to the project root
+    from search_utils import BM25_K1
+except Exception:
+    from cli.search_utils import BM25_K1
 
 # Common boolean operator words (lowercase) — keep at module scope to avoid
 # reallocating this small set on every search invocation.
@@ -190,11 +197,36 @@ class InvertedIndex:
         # BM25 idf variant (with +0.5 smoothing)
         return float(math.log((N - df + 0.5) / (df + 0.5) + 1))
 
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+        """Return BM25 saturated term-frequency for a document-term.
+
+        Uses formula: (tf * (k1 + 1)) / (tf + k1)
+        where tf is the raw term frequency in the document.
+        """
+        # Reuse existing get_tf to obtain the raw count
+        try:
+            tf_raw = int(self.get_tf(doc_id, term))
+        except ValueError:
+            # Propagate as-is for invalid doc_id/term shapes
+            raise
+
+        if tf_raw <= 0:
+            return 0.0
+
+        return float((tf_raw * (k1 + 1)) / (tf_raw + k1))
+
 def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
     """Load index from disk and return BM25 IDF for the given term."""
     idx = InvertedIndex()
     idx.load(cache_dir)
     return idx.get_bm25_idf(term)
+
+
+def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, cache_dir: str | Path = None) -> float:
+    """Load index and return BM25 TF score for the given document and term."""
+    idx = InvertedIndex()
+    idx.load(cache_dir)
+    return idx.get_bm25_tf(doc_id, term, k1)
 
 
 def main() -> None:
@@ -224,6 +256,13 @@ def main() -> None:
         'bm25idf', help="Get BM25 IDF score for a given term"
     )
     bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
+
+    bm25_tf_parser = subparsers.add_parser(
+        "bm25tf", help="Get BM25 TF score for a given document ID and term"
+    )
+    bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
+    bm25_tf_parser.add_argument("k1", type=float, nargs='?', default=BM25_K1, help="Tunable BM25 K1 parameter")
 
     args = parser.parse_args()
 
@@ -323,7 +362,7 @@ def main() -> None:
         case "bm25idf":
             # Use bm25_idf_command helper to compute score and print it
             try:
-                bm25idf = bm25_idf_command(args.term, cache_dir=args.cache_dir)
+                bm25idf = bm25_idf_command(args.term)
             except FileNotFoundError:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
@@ -332,6 +371,19 @@ def main() -> None:
                 return
 
             print(f"BM25 IDF score of '{args.term}': {bm25idf:.2f}")
+            return
+        case "bm25tf":
+            # Compute BM25 TF for a document-term pair
+            try:
+                bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1)
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+
+            print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
             return
         case "search":
             # Use cached inverted index to answer the query
