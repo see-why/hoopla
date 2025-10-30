@@ -71,10 +71,10 @@ class InvertedIndex:
         tokens_pre_stem = [t for t in norm.split() if t and t not in self.stopwords]
 
         # record document length (number of tokens after stopword removal)
-        try:
-            mid = int(doc_id)
-        except (ValueError, TypeError):
-            return
+        # `doc_id` is expected to be an integer (the caller performs
+        # coercion/validation); avoid redundant conversion and early
+        # return here so errors surface at the call site.
+        mid = doc_id
         token_count = len(tokens_pre_stem)
         self.doc_lengths[mid] = token_count
 
