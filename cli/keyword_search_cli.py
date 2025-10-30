@@ -12,11 +12,16 @@ import heapq
 import math
 try:
     # When executed as a script, the working directory / sys.path[0]
-    # will be the `cli/` directory; prefer the local cli.search_utils
-    # module if present, otherwise fall back to the project root
-    from search_utils import BM25_K1
+    # will be the `cli/` directory; prefer the top-level project
+    # `search_utils` module if present, otherwise fall back to
+    # the local `cli.search_utils` copy. Import both tuning constants.
+    from search_utils import BM25_K1, BM25_B
 except Exception:
-    from cli.search_utils import BM25_K1
+    from cli.search_utils import BM25_K1, BM25_B
+
+# Default cache directory path used for doc-length cache file path
+# (string form for os.path.join usage)
+CACHE_DIR = str(Path(__file__).resolve().parents[1] / "cache")
 
 # Common boolean operator words (lowercase) — keep at module scope to avoid
 # reallocating this small set on every search invocation.
@@ -40,6 +45,10 @@ class InvertedIndex:
         self.docmap: dict[int, dict] = {}
         # Term frequencies: doc_id -> Counter(token -> count)
         self.term_frequencies: dict[int, Counter] = {}
+        # Document lengths: doc_id -> int (number of tokens indexed)
+        self.doc_lengths: dict[int, int] = {}
+        # Path for persisted doc lengths cache (string path)
+        self.doc_lengths_path = os.path.join(CACHE_DIR, "doc_lengths.pkl")
 
         # Normalization helpers
         self._punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
@@ -58,16 +67,26 @@ class InvertedIndex:
         """Tokenize text and add doc_id to each token's posting set."""
         if not isinstance(text, str):
             return
-
+        # normalize and split into tokens (remove stopwords)
         norm = " ".join(text.casefold().translate(self._punct_trans).split())
-        tokens = [t for t in norm.split() if t and t not in self.stopwords]
-        tokens = [self.stemmer.stem(t) for t in tokens]
+        tokens_pre_stem = [t for t in norm.split() if t and t not in self.stopwords]
+
+        # record document length (number of tokens after stopword removal)
+        try:
+            mid = int(doc_id)
+        except (ValueError, TypeError):
+            return
+        token_count = len(tokens_pre_stem)
+        self.doc_lengths[mid] = token_count
+
+        # apply stemming for indexing
+        tokens = [self.stemmer.stem(t) for t in tokens_pre_stem]
 
         for tok in tokens:
             postings = self.index.setdefault(tok, set())
-            postings.add(int(doc_id))
+            postings.add(mid)
             # update term frequencies for this document
-            ctr = self.term_frequencies.setdefault(int(doc_id), Counter())
+            ctr = self.term_frequencies.setdefault(mid, Counter())
             ctr[tok] += 1
 
     def get_documents(self, term: str) -> list[int]:
@@ -143,6 +162,13 @@ class InvertedIndex:
         with open(tf_path, "wb") as fh:
             pickle.dump(self.term_frequencies, fh, protocol=pickle.HIGHEST_PROTOCOL)
 
+        # Save document lengths
+        doc_lengths_path = base / "doc_lengths.pkl"
+        with open(doc_lengths_path, "wb") as fh:
+            pickle.dump(self.doc_lengths, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        # update stored path
+        self.doc_lengths_path = str(doc_lengths_path)
+
     def load(self, cache_dir: str | Path = None) -> None:
         """Load index and docmap from cache/index.pkl and cache/docmap.pkl.
 
@@ -167,6 +193,14 @@ class InvertedIndex:
             raise FileNotFoundError(f"Cache files not found at {base}")
         with open(tf_path, "rb") as fh:
             self.term_frequencies = pickle.load(fh)
+
+        # Load document lengths
+        doc_lengths_path = base / "doc_lengths.pkl"
+        if not doc_lengths_path.exists():
+            raise FileNotFoundError(f"Cache files not found at {base}")
+        with open(doc_lengths_path, "rb") as fh:
+            self.doc_lengths = pickle.load(fh)
+        self.doc_lengths_path = str(doc_lengths_path)
 
     def get_bm25_idf(self, term: str) -> float:
         """Compute BM25-style IDF for a single-term query.
@@ -197,23 +231,49 @@ class InvertedIndex:
         # BM25 idf variant (with +0.5 smoothing)
         return float(math.log((N - df + 0.5) / (df + 0.5) + 1))
 
-    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
-        """Return BM25 saturated term-frequency for a document-term.
+    def __get_avg_doc_length(self) -> float:
+        """Return the average document length (number of tokens).
 
-        Uses formula: (tf * (k1 + 1)) / (tf + k1)
-        where tf is the raw term frequency in the document.
+        Returns 0.0 when there are no documents.
         """
-        # Reuse existing get_tf to obtain the raw count
+        if not self.doc_lengths:
+            return 0.0
+        total = sum(self.doc_lengths.values())
+        return float(total) / len(self.doc_lengths)
+
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B) -> float:
+        """Return BM25 term score component for a document-term.
+
+        Uses BM25 TF with length normalization:
+        (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (dl/avgdl)))
+        where tf is raw term frequency, dl is document length, avgdl is average doc length.
+        """
+        # Ensure doc id is an integer for lookups
         try:
-            tf_raw = int(self.get_tf(doc_id, term))
+            mid = int(doc_id)
+        except (ValueError, TypeError):
+            raise ValueError("doc_id must be an integer or integer string")
+
+        # Reuse existing get_tf to obtain the raw count (this validates term)
+        try:
+            tf_raw = int(self.get_tf(mid, term))
         except ValueError:
-            # Propagate as-is for invalid doc_id/term shapes
+            # Propagate as-is for invalid term shapes
             raise
 
         if tf_raw <= 0:
             return 0.0
 
-        return float((tf_raw * (k1 + 1)) / (tf_raw + k1))
+        dl = int(self.doc_lengths.get(mid, 0))
+        avgdl = self.__get_avg_doc_length()
+
+        # length normalization factor; handle avgdl == 0
+        if avgdl <= 0:
+            denom = tf_raw + k1 * (1 - b)
+        else:
+            denom = tf_raw + k1 * (1 - b + b * (dl / avgdl))
+
+        return float((tf_raw * (k1 + 1)) / denom)
 
 def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
     """Load index from disk and return BM25 IDF for the given term."""
@@ -222,11 +282,14 @@ def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
     return idx.get_bm25_idf(term)
 
 
-def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, cache_dir: str | Path = None) -> float:
-    """Load index and return BM25 TF score for the given document and term."""
+def bm25_tf_command(doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B, cache_dir: str | Path = None) -> float:
+    """Load index and return BM25 TF score for the given document and term.
+
+    Accepts k1 and b tuning parameters.
+    """
     idx = InvertedIndex()
     idx.load(cache_dir)
-    return idx.get_bm25_tf(doc_id, term, k1)
+    return idx.get_bm25_tf(doc_id, term, k1, b)
 
 
 def main() -> None:
@@ -263,6 +326,7 @@ def main() -> None:
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
     bm25_tf_parser.add_argument("k1", type=float, nargs='?', default=BM25_K1, help="Tunable BM25 K1 parameter")
+    bm25_tf_parser.add_argument("b", type=float, nargs='?', default=BM25_B, help="Tunable BM25 b parameter")
 
     args = parser.parse_args()
 
@@ -373,9 +437,9 @@ def main() -> None:
             print(f"BM25 IDF score of '{args.term}': {bm25idf:.2f}")
             return
         case "bm25tf":
-            # Compute BM25 TF for a document-term pair
+            # Compute BM25 TF for a document-term pair (supports k1 and b)
             try:
-                bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1)
+                bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1, args.b)
             except FileNotFoundError:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
