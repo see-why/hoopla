@@ -263,7 +263,9 @@ class InvertedIndex:
         if tf_raw <= 0:
             return 0.0
 
-        dl = int(self.doc_lengths.get(mid, 0))
+        if mid not in self.doc_lengths:
+            raise KeyError(f"Document length for doc_id {mid} not found in doc_lengths. This indicates a data inconsistency.")
+        dl = int(self.doc_lengths[mid])
         avgdl = self.__get_avg_doc_length()
 
         # length normalization factor; handle avgdl == 0
