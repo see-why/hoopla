@@ -47,8 +47,7 @@ class InvertedIndex:
         self.term_frequencies: dict[int, Counter] = {}
         # Document lengths: doc_id -> int (number of tokens indexed)
         self.doc_lengths: dict[int, int] = {}
-        # Path for persisted doc lengths cache (string path)
-        self.doc_lengths_path = os.path.join(CACHE_DIR, "doc_lengths.pkl")
+        # Path for persisted doc lengths cache is computed dynamically in save/load
 
         # Normalization helpers
         self._punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
