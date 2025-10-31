@@ -304,15 +304,24 @@ class InvertedIndex:
 
         scores: dict[int, float] = {}
 
-        # Iterate over all documents and sum term scores
-        for doc_id in self.docmap.keys():
+        # Build candidate set by unioning postings for each query token so
+        # we only score documents that contain at least one query term.
+        candidates: set[int] = set()
+        for tok in tokens:
+            postings = self.index.get(tok, set())
+            candidates.update(postings)
+
+        if not candidates:
+            return []
+
+        # Score only candidate documents
+        for doc_id in candidates:
             total = 0.0
             for tok in tokens:
-                # if term not in index, bm25 will return 0 via get_bm25_tf
                 try:
                     total += self.bm25(doc_id, tok)
                 except (ValueError, KeyError):
-                    # skip documents/terms that raise due to inconsistent cache
+                    # skip if term/doc lookups fail for this candidate
                     continue
             if total > 0.0:
                 scores[int(doc_id)] = total
