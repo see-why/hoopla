@@ -539,10 +539,13 @@ def main() -> None:
                 print("No results found.")
                 return
 
+
             for rank, (did, score) in enumerate(results, start=1):
                 doc = idx.docmap.get(did) or {}
                 title = doc.get("title", "<untitled>")
-                print(f"{rank}. [{did}] {title} ({score:.2f})")
+                # Print in the requested format:
+                # 1. (15) The Adventures of Mowgli - Score: 7.79
+                print(f"{rank}. ({did}) {title} - Score: {score:.2f}")
 
             return
         case "search":
