@@ -539,7 +539,6 @@ def main() -> None:
                 print("No results found.")
                 return
 
-
             for rank, (did, score) in enumerate(results, start=1):
                 doc = idx.docmap.get(did) or {}
                 title = doc.get("title", "<untitled>")
