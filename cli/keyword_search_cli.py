@@ -44,7 +44,9 @@ class InvertedIndex:
         self.term_frequencies: dict[int, Counter] = {}
         # Document lengths: doc_id -> int (number of tokens indexed)
         self.doc_lengths: dict[int, int] = {}
-        # Path for persisted doc lengths cache is computed dynamically in save/load
+        # Path for persisted doc lengths cache (set after save/load).
+        # Initialize to None to avoid AttributeError if accessed early.
+        self.doc_lengths_path: str | None = None
 
         # Normalization helpers
         self._punct_trans = str.maketrans(string.punctuation, " " * len(string.punctuation))
@@ -136,7 +138,7 @@ class InvertedIndex:
 
     def save(self, cache_dir: str | Path = None) -> None:
         """Persist index and docmap into cache/index.pkl and cache/docmap.pkl."""
-        base = Path(cache_dir) if cache_dir else Path(__file__).resolve().parents[1] / "cache"
+        base = Path(cache_dir) if cache_dir else Path(CACHE_DIR)
         try:
             base.mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -170,7 +172,7 @@ class InvertedIndex:
 
         Raises FileNotFoundError if files are missing.
         """
-        base = Path(cache_dir) if cache_dir else Path(__file__).resolve().parents[1] / "cache"
+        base = Path(cache_dir) if cache_dir else Path(CACHE_DIR)
         idx_path = base / "index.pkl"
         docmap_path = base / "docmap.pkl"
 
