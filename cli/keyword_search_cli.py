@@ -19,10 +19,6 @@ try:
 except Exception:
     from cli.search_utils import BM25_K1, BM25_B
 
-# Default cache directory path used for doc-length cache file path
-# (string form for os.path.join usage)
-CACHE_DIR = str(Path(__file__).resolve().parents[1] / "cache")
-
 # Common boolean operator words (lowercase) — keep at module scope to avoid
 # reallocating this small set on every search invocation.
 OPERATORS = {"and", "or", "not"}
