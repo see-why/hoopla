@@ -10,6 +10,7 @@ from collections import Counter
 
 import heapq
 import math
+import sys
 try:
     # When executed as a script, the working directory / sys.path[0]
     # will be the `cli/` directory; prefer the top-level project
@@ -322,8 +323,17 @@ def main() -> None:
     )
     bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
     bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
-    bm25_tf_parser.add_argument("--k1", type=float, default=BM25_K1, help="Tunable BM25 K1 parameter")
-    bm25_tf_parser.add_argument("--b", type=float, default=BM25_B, help="Tunable BM25 b parameter")
+    # Backwards-compatible positional arguments (deprecated): allow callers
+    # to pass k1 and b positionally to preserve older CLI usage. These
+    # positional fallbacks are suppressed from help; prefer using flags.
+    bm25_tf_parser.add_argument("k1_pos", type=float, nargs='?', default=None, help=argparse.SUPPRESS)
+    bm25_tf_parser.add_argument("b_pos", type=float, nargs='?', default=None, help=argparse.SUPPRESS)
+
+    # Preferred form: explicit flags. We set defaults to None so we can
+    # detect which form the caller used and emit a deprecation warning
+    # when the positional form is used.
+    bm25_tf_parser.add_argument("--k1", dest="k1", type=float, default=None, help="Tunable BM25 K1 parameter")
+    bm25_tf_parser.add_argument("--b", dest="b", type=float, default=None, help="Tunable BM25 b parameter")
 
     args = parser.parse_args()
 
@@ -435,8 +445,22 @@ def main() -> None:
             return
         case "bm25tf":
             # Compute BM25 TF for a document-term pair (supports k1 and b)
+            # Decide which k1/b to use: flags override positional fallbacks.
+            k1_value = args.k1 if getattr(args, "k1", None) is not None else (
+                args.k1_pos if getattr(args, "k1_pos", None) is not None else BM25_K1
+            )
+            b_value = args.b if getattr(args, "b", None) is not None else (
+                args.b_pos if getattr(args, "b_pos", None) is not None else BM25_B
+            )
+
+            # Warn if user is using deprecated positional form so they can migrate
+            if getattr(args, "k1_pos", None) is not None and getattr(args, "k1", None) is None:
+                print("Warning: positional k1 argument is deprecated; use --k1 flag instead", file=sys.stderr)
+            if getattr(args, "b_pos", None) is not None and getattr(args, "b", None) is None:
+                print("Warning: positional b argument is deprecated; use --b flag instead", file=sys.stderr)
+
             try:
-                bm25tf = bm25_tf_command(args.doc_id, args.term, args.k1, args.b)
+                bm25tf = bm25_tf_command(args.doc_id, args.term, k1_value, b_value)
             except FileNotFoundError:
                 print("Cached index not found. Please run: cli/keyword_search_cli.py build")
                 return
