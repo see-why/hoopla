@@ -138,7 +138,7 @@ class InvertedIndex:
 
     def save(self, cache_dir: str | Path = None) -> None:
         """Persist index and docmap into cache/index.pkl and cache/docmap.pkl."""
-        base = Path(cache_dir) if cache_dir else Path(CACHE_DIR)
+        base = Path(cache_dir) if cache_dir else Path(__file__).resolve().parents[1] / "cache"
         try:
             base.mkdir(parents=True, exist_ok=True)
         except OSError:
@@ -172,7 +172,7 @@ class InvertedIndex:
 
         Raises FileNotFoundError if files are missing.
         """
-        base = Path(cache_dir) if cache_dir else Path(CACHE_DIR)
+        base = Path(cache_dir) if cache_dir else Path(__file__).resolve().parents[1] / "cache"
         idx_path = base / "index.pkl"
         docmap_path = base / "docmap.pkl"
 
@@ -275,6 +275,52 @@ class InvertedIndex:
 
         return float((tf_raw * (k1 + 1)) / denom)
 
+    def bm25(self, doc_id: int, term: str) -> float:
+        """Return the full BM25 score for a single term in a document.
+
+        This multiplies the BM25 TF component by the BM25 IDF component.
+        """
+        # BM25 TF validates doc_id/term shapes and looks up doc length
+        tf_comp = self.get_bm25_tf(doc_id, term)
+        idf_comp = self.get_bm25_idf(term)
+        return float(tf_comp * idf_comp)
+
+    def bm25_search(self, query: str, limit: int = 5) -> list[tuple[int, float]]:
+        """Perform a simple BM25 ranking over all documents for the query.
+
+        Tokenizes the query using the same normalization pipeline used for
+        indexing. Returns a list of (doc_id, score) sorted by score desc,
+        limited to `limit` items.
+        """
+        if not isinstance(query, str):
+            return []
+
+        # Normalize query like in indexing
+        q_norm = " ".join(query.casefold().translate(self._punct_trans).split())
+        raw_tokens = [t for t in q_norm.split() if t and t not in self.stopwords]
+        tokens = [self.stemmer.stem(t) for t in raw_tokens]
+        if not tokens:
+            return []
+
+        scores: dict[int, float] = {}
+
+        # Iterate over all documents and sum term scores
+        for doc_id in self.docmap.keys():
+            total = 0.0
+            for tok in tokens:
+                # if term not in index, bm25 will return 0 via get_bm25_tf
+                try:
+                    total += self.bm25(doc_id, tok)
+                except (ValueError, KeyError):
+                    # skip documents/terms that raise due to inconsistent cache
+                    continue
+            if total > 0.0:
+                scores[int(doc_id)] = total
+
+        # sort by score descending, return top `limit`
+        top = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[: max(0, int(limit))]
+        return top
+
 def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
     """Load index from disk and return BM25 IDF for the given term."""
     idx = InvertedIndex()
@@ -336,6 +382,12 @@ def main() -> None:
     # when the positional form is used.
     bm25_tf_parser.add_argument("--k1", dest="k1", type=float, default=None, help="Tunable BM25 K1 parameter")
     bm25_tf_parser.add_argument("--b", dest="b", type=float, default=None, help="Tunable BM25 b parameter")
+
+    bm25_search_parser = subparsers.add_parser(
+        "bm25search", help="Rank documents using BM25 for a query"
+    )
+    bm25_search_parser.add_argument("query", type=str, help="Search query")
+    bm25_search_parser.add_argument("--limit", type=int, default=5, help="Number of top documents to return")
 
     args = parser.parse_args()
 
@@ -471,6 +523,27 @@ def main() -> None:
                 return
 
             print(f"BM25 TF score of '{args.term}' in document '{args.doc_id}': {bm25tf:.2f}")
+            return
+        case "bm25search":
+            # Rank documents with BM25 and print top-k
+            idx = InvertedIndex()
+            try:
+                idx.load()
+            except FileNotFoundError:
+                print("Cached index not found. Please run: cli/keyword_search_cli.py build")
+                return
+
+            results = idx.bm25_search(args.query, args.limit)
+
+            if not results:
+                print("No results found.")
+                return
+
+            for rank, (did, score) in enumerate(results, start=1):
+                doc = idx.docmap.get(did) or {}
+                title = doc.get("title", "<untitled>")
+                print(f"{rank}. [{did}] {title} ({score:.2f})")
+
             return
         case "search":
             # Use cached inverted index to answer the query
