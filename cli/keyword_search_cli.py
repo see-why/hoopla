@@ -324,7 +324,7 @@ class InvertedIndex:
                     # skip if term/doc lookups fail for this candidate
                     continue
             if total > 0.0:
-                scores[int(doc_id)] = total
+                scores[doc_id] = total
 
         # sort by score descending, return top `limit`
         top = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[: max(0, int(limit))]
