@@ -326,8 +326,16 @@ class InvertedIndex:
             if total > 0.0:
                 scores[doc_id] = total
 
-        # sort by score descending, return top `limit`
-        top = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[: max(0, int(limit))]
+        # validate limit and return top `limit`
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            raise ValueError("limit must be a positive integer")
+
+        if limit_int <= 0:
+            raise ValueError("limit must be positive")
+
+        top = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[:limit_int]
         return top
 
 def bm25_idf_command(term: str, cache_dir: str | Path = None) -> float:
