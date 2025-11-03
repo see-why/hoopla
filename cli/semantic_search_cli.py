@@ -16,7 +16,14 @@ def main():
         case "verify":
             # Import lazily so importing this module doesn't require the
             # sentence-transformers package unless the command is invoked.
-            from cli.lib.semantic_search import verify_model
+            # Support two invocation styles:
+            # - when running as a module from project root: `cli.lib...`
+            # - when running the script directly (sys.path[0] == cli/):
+            #   import from `lib...` instead.
+            try:
+                from cli.lib.semantic_search import verify_model
+            except Exception:
+                from lib.semantic_search import verify_model
 
             verify_model()
         case _:
