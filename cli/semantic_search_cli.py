@@ -22,7 +22,7 @@ def main():
             #   import from `lib...` instead.
             try:
                 from cli.lib.semantic_search import verify_model
-            except Exception:
+            except ImportError:
                 from lib.semantic_search import verify_model
 
             verify_model()
