@@ -8,7 +8,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # verify command: print loaded model information
-    verify_parser = subparsers.add_parser("verify", help="Verify sentence-transformers model is loadable")
+    subparsers.add_parser("verify", help="Verify sentence-transformers model is loadable")
 
     args = parser.parse_args()
 
