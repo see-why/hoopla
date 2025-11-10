@@ -59,7 +59,7 @@ def embed_text(text: str) -> None:
     # portably and show first three values.
     try:
         first3 = emb[:3]
-    except Exception:
+    except TypeError:
         # fallback if emb isn't sliceable
         first3 = list(emb)[:3]
 
