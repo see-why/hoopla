@@ -68,7 +68,7 @@ def embed_text(text: str) -> None:
     if dim is not None:
         try:
             dims = emb.shape[0]
-        except Exception:
+        except (AttributeError, TypeError, IndexError):
             dims = len(emb)
     else:
         dims = len(emb)
