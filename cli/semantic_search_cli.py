@@ -9,6 +9,11 @@ def main():
 
     # verify command: print loaded model information
     subparsers.add_parser("verify", help="Verify sentence-transformers model is loadable")
+    # embed_text command: generate embedding for a single input text
+    embed_parser = subparsers.add_parser(
+        "embed_text", help="Generate embedding for a single input text and print a short summary"
+    )
+    embed_parser.add_argument("text", type=str, help="Text to embed")
 
     args = parser.parse_args()
 
@@ -26,6 +31,13 @@ def main():
                 from lib.semantic_search import verify_model
 
             verify_model()
+        case "embed_text":
+            try:
+                from cli.lib.semantic_search import embed_text
+            except ImportError:
+                from lib.semantic_search import embed_text
+
+            embed_text(args.text)
         case _:
             parser.print_help()
 
