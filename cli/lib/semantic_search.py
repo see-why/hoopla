@@ -64,12 +64,8 @@ def embed_text(text: str) -> None:
         first3 = list(emb)[:3]
 
     # Determine dimensionality
-    dim = getattr(getattr(emb, "shape", None), "__getitem__", None)
-    if dim is not None:
-        try:
-            dims = emb.shape[0]
-        except (AttributeError, TypeError, IndexError):
-            dims = len(emb)
+    if hasattr(emb, 'shape'):
+        dims = emb.shape[0]
     else:
         dims = len(emb)
 
