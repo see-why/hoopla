@@ -47,27 +47,9 @@ class SemanticSearch:
         document, saves the resulting embeddings to cache/movie_embeddings.npy,
         and returns the embeddings array.
         """
-        # store documents and map
-        self.documents = documents
-        self.document_map = {}
-        texts = []
-        for d in documents:
-            # skip documents without an explicit id
-            doc_id_raw = d.get("id")
-            if doc_id_raw is None:
-                continue
-            try:
-                doc_id = int(doc_id_raw)
-            except (ValueError, TypeError):
-                # skip invalid ids
-                continue
-            # avoid overwriting in case of duplicate ids
-            if doc_id in self.document_map:
-                continue
-            self.document_map[doc_id] = d
-            title = d.get("title") or ""
-            desc = d.get("description") or ""
-            texts.append(f"{title}: {desc}")
+        # build document map and get the ordered list of accepted docs
+        kept_docs = self._build_document_map(documents)
+        texts = [f"{d.get('title') or ''}: {d.get('description') or ''}" for d in kept_docs]
 
         # encode with progress bar
         embeddings = self.model.encode(texts, show_progress_bar=True)
@@ -90,20 +72,8 @@ class SemanticSearch:
 
         Ensures self.documents and self.document_map are populated.
         """
-        self.documents = documents
-        self.document_map = {}
-        for d in documents:
-            doc_id_raw = d.get("id")
-            if doc_id_raw is None:
-                continue
-            try:
-                doc_id = int(doc_id_raw)
-            except (ValueError, TypeError):
-                continue
-            if doc_id in self.document_map:
-                # preserve first occurrence; skip duplicates
-                continue
-            self.document_map[doc_id] = d
+        # populate document bookkeeping consistently
+        self._build_document_map(documents)
 
         cache_path = Path(__file__).resolve().parents[2] / "cache" / "movie_embeddings.npy"
         if cache_path.exists():
@@ -119,6 +89,32 @@ class SemanticSearch:
 
         # rebuild if missing or mismatched
         return self.build_embeddings(documents)
+
+    def _build_document_map(self, documents: list[dict]) -> list[dict]:
+        """Populate self.documents and self.document_map from documents.
+
+        Returns an ordered list of documents that were accepted (skips
+        documents lacking an 'id', invalid ids, or duplicate ids preserving
+        the first occurrence).
+        """
+        self.documents = documents
+        self.document_map = {}
+        kept: list[dict] = []
+        for d in documents:
+            doc_id_raw = d.get("id")
+            if doc_id_raw is None:
+                continue
+            try:
+                doc_id = int(doc_id_raw)
+            except (ValueError, TypeError):
+                continue
+            if doc_id in self.document_map:
+                # preserve first occurrence; skip duplicates
+                continue
+            self.document_map[doc_id] = d
+            kept.append(d)
+
+        return kept
 
 
 def verify_model() -> None:
