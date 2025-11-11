@@ -1,4 +1,7 @@
 from sentence_transformers import SentenceTransformer
+import numpy as np
+from pathlib import Path
+import json
 
 
 class SemanticSearch:
@@ -11,6 +14,10 @@ class SemanticSearch:
     def __init__(self) -> None:
         # Initialize the SentenceTransformer model instance
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        # embeddings storage and document bookkeeping
+        self.embeddings = None
+        self.documents = None
+        self.document_map: dict[int, dict] = {}
 
     def generate_embedding(self, text: str):
         """Generate an embedding vector for `text` using the underlying model.
@@ -30,6 +37,75 @@ class SemanticSearch:
         # single element, the encoder typically returns an array-like where
         # the first element contains the embedding for the input.
         return result[0]
+
+    def build_embeddings(self, documents: list[dict]):
+        """Build embeddings for the provided list of document dicts.
+
+        Each document is expected to be a dict with at least 'id', 'title',
+        and 'description' keys. The method stores documents and a mapping
+        from id -> document, encodes the concatenated strings for each
+        document, saves the resulting embeddings to cache/movie_embeddings.npy,
+        and returns the embeddings array.
+        """
+        # store documents and map
+        self.documents = documents
+        self.document_map = {}
+        texts = []
+        for d in documents:
+            try:
+                doc_id = int(d.get("id") or 0)
+            except (ValueError, TypeError):
+                # skip invalid ids
+                continue
+            self.document_map[doc_id] = d
+            title = d.get("title") or ""
+            desc = d.get("description") or ""
+            texts.append(f"{title}: {desc}")
+
+        # encode with progress bar
+        embeddings = self.model.encode(texts, show_progress_bar=True)
+        self.embeddings = np.array(embeddings)
+
+        # persist to cache
+        # project root is two levels up from cli/lib
+        cache_dir = Path(__file__).resolve().parents[2] / "cache"
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        out_path = cache_dir / "movie_embeddings.npy"
+        np.save(str(out_path), self.embeddings)
+
+        return self.embeddings
+
+    def load_or_create_embeddings(self, documents: list[dict]):
+        """Load embeddings from cache if present and valid, otherwise build.
+
+        Ensures self.documents and self.document_map are populated.
+        """
+        self.documents = documents
+        self.document_map = {}
+        for d in documents:
+            try:
+                doc_id = int(d.get("id") or 0)
+            except (ValueError, TypeError):
+                continue
+            self.document_map[doc_id] = d
+
+        cache_path = Path(__file__).resolve().parents[2] / "cache" / "movie_embeddings.npy"
+        if cache_path.exists():
+            try:
+                arr = np.load(str(cache_path))
+                # validate length
+                if len(arr) == len(documents):
+                    self.embeddings = arr
+                    return self.embeddings
+            except Exception:
+                # fall through to rebuild
+                pass
+
+        # rebuild if missing or mismatched
+        return self.build_embeddings(documents)
 
 
 def verify_model() -> None:
@@ -63,6 +139,14 @@ def embed_text(text: str) -> None:
         # fallback if emb isn't sliceable
         first3 = list(emb)[:3]
 
+    # Format first three dimensions to 3 decimal places for stable CLI output.
+    try:
+        # Convert to floats then format
+        first3_list = [float(x) for x in first3]
+    except Exception:
+        first3_list = [float(x) for x in list(first3)]
+    formatted_first3 = " ".join(f"{v:.3f}" for v in first3_list)
+
     # Determine dimensionality
     if hasattr(emb, 'shape'):
         dims = emb.shape[0]
@@ -70,5 +154,37 @@ def embed_text(text: str) -> None:
         dims = len(emb)
 
     print(f"Text: {text}")
-    print(f"First 3 dimensions: {first3}")
+    print(f"First 3 dimensions: {formatted_first3}")
     print(f"Dimensions: {dims}")
+
+
+def verify_embeddings() -> None:
+    """Load movies and verify embeddings exist or are built, then print shape."""
+    ss = SemanticSearch()
+    data_dir = Path(__file__).resolve().parents[2] / "data"
+    movies_path = data_dir / "movies.json"
+    if not movies_path.exists():
+        movies_path = data_dir / "movies 2.json"
+    try:
+        loaded = json.loads(movies_path.read_text(encoding="utf-8"))
+        # many datasets wrap the list under a key like 'movies'
+        if isinstance(loaded, dict) and "movies" in loaded:
+            docs = loaded["movies"]
+        elif isinstance(loaded, list):
+            docs = loaded
+        else:
+            docs = []
+    except Exception:
+        docs = []
+
+    embeddings = ss.load_or_create_embeddings(docs)
+    if embeddings is None:
+        print("No embeddings generated")
+        return
+
+    print(f"Number of docs:   {len(docs)}")
+    # embeddings is a numpy array
+    try:
+        print(f"Embeddings shape: {embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions")
+    except Exception:
+        print(f"Embeddings shape: {len(embeddings)} vectors")
