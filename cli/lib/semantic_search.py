@@ -52,10 +52,17 @@ class SemanticSearch:
         self.document_map = {}
         texts = []
         for d in documents:
+            # skip documents without an explicit id
+            doc_id_raw = d.get("id")
+            if doc_id_raw is None:
+                continue
             try:
-                doc_id = int(d.get("id") or 0)
+                doc_id = int(doc_id_raw)
             except (ValueError, TypeError):
                 # skip invalid ids
+                continue
+            # avoid overwriting in case of duplicate ids
+            if doc_id in self.document_map:
                 continue
             self.document_map[doc_id] = d
             title = d.get("title") or ""
@@ -86,9 +93,15 @@ class SemanticSearch:
         self.documents = documents
         self.document_map = {}
         for d in documents:
+            doc_id_raw = d.get("id")
+            if doc_id_raw is None:
+                continue
             try:
-                doc_id = int(d.get("id") or 0)
+                doc_id = int(doc_id_raw)
             except (ValueError, TypeError):
+                continue
+            if doc_id in self.document_map:
+                # preserve first occurrence; skip duplicates
                 continue
             self.document_map[doc_id] = d
 
