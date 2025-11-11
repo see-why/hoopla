@@ -2,6 +2,9 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from pathlib import Path
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SemanticSearch:
@@ -61,7 +64,11 @@ class SemanticSearch:
         try:
             cache_dir.mkdir(parents=True, exist_ok=True)
         except OSError:
-            pass
+            # If we cannot create the cache directory, continue and let
+            # the subsequent save raise a clearer error (or the caller
+            # can decide to ignore missing cache). Log at debug level so
+            # developers can inspect the issue when needed.
+            logger.debug("Could not create cache directory %s", cache_dir)
         out_path = cache_dir / "movie_embeddings.npy"
         np.save(str(out_path), self.embeddings)
 
@@ -84,8 +91,11 @@ class SemanticSearch:
                     self.embeddings = arr
                     return self.embeddings
             except Exception:
-                # fall through to rebuild
-                pass
+                # If loading the cached embeddings fails for any reason
+                # (corrupt file, incompatible format, etc.) we fall back
+                # to rebuilding the embeddings from the documents. Log
+                # at debug level to aid diagnosis when debugging.
+                logger.debug("Failed to load cached embeddings from %s, rebuilding", cache_path)
 
         # rebuild if missing or mismatched
         return self.build_embeddings(documents)
@@ -180,7 +190,11 @@ def verify_embeddings() -> None:
             docs = loaded
         else:
             docs = []
-    except Exception:
+    except Exception as exc:
+        # If we cannot read or parse the movies file, fall back to an
+        # empty documents list. Log the exception at debug level so the
+        # caller can inspect the cause when needed.
+        logger.debug("Failed to load movies file %s: %s", movies_path, exc)
         docs = []
 
     embeddings = ss.load_or_create_embeddings(docs)
