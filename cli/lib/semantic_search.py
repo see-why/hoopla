@@ -87,7 +87,7 @@ class SemanticSearch:
             try:
                 arr = np.load(str(cache_path))
                 # validate length
-                if len(arr) == len(documents):
+                if len(arr) == len(self.document_map):
                     self.embeddings = arr
                     return self.embeddings
             except Exception:
