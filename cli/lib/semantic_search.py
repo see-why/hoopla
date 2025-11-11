@@ -140,11 +140,8 @@ def embed_text(text: str) -> None:
         first3 = list(emb)[:3]
 
     # Format first three dimensions to 3 decimal places for stable CLI output.
-    try:
-        # Convert to floats then format
-        first3_list = [float(x) for x in first3]
-    except Exception:
-        first3_list = [float(x) for x in list(first3)]
+    # Convert to floats then format
+    first3_list = [float(x) for x in first3]
     formatted_first3 = " ".join(f"{v:.3f}" for v in first3_list)
 
     # Determine dimensionality
