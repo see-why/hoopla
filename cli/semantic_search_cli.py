@@ -14,6 +14,8 @@ def main():
         "embed_text", help="Generate embedding for a single input text and print a short summary"
     )
     embed_parser.add_argument("text", type=str, help="Text to embed")
+    # verify_embeddings command: build or load embeddings for the movie corpus
+    subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
     args = parser.parse_args()
 
@@ -38,6 +40,13 @@ def main():
                 from lib.semantic_search import embed_text
 
             embed_text(args.text)
+        case "verify_embeddings":
+            try:
+                from cli.lib.semantic_search import verify_embeddings
+            except ImportError:
+                from lib.semantic_search import verify_embeddings
+
+            verify_embeddings()
         case _:
             parser.print_help()
 

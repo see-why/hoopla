@@ -14,3 +14,5 @@ cache/index.pkl
 data/movies 2.json
 cache/term_frequencies.pkl
 cache/doc_lengths.pkl
+cli/cache/movie_embeddings.npy
+cache/movie_embeddings.npy
