@@ -198,7 +198,7 @@ def verify_embeddings() -> None:
         docs = []
 
     embeddings = ss.load_or_create_embeddings(docs)
-    if embeddings is None:
+    if embeddings is None or len(embeddings) == 0:
         print("No embeddings generated")
         return
 
