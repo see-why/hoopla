@@ -103,12 +103,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "nltk" },
+    { name = "numpy" },
     { name = "sentence-transformers" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "nltk", specifier = "==3.9.1" },
+    { name = "numpy" },
     { name = "sentence-transformers" },
 ]
 
