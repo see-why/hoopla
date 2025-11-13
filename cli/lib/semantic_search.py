@@ -174,6 +174,33 @@ def embed_text(text: str) -> None:
     print(f"Dimensions: {dims}")
 
 
+def embed_query_text(query: str) -> None:
+    """Create a SemanticSearch, embed `query`, and print the query info.
+
+    Prints the input query, the first five embedding dimensions, and the
+    embedding shape. Uses the existing `generate_embedding` method which
+    performs whitespace stripping and validation.
+    """
+    ss = SemanticSearch()
+    emb = ss.generate_embedding(query)
+
+    # First five dimensions (works for lists and numpy arrays)
+    try:
+        first5 = emb[:5]
+    except Exception:
+        first5 = list(emb)[:5]
+
+    # Ensure we can report a shape: convert to numpy array if necessary
+    try:
+        shape = emb.shape
+    except Exception:
+        shape = np.asarray(emb).shape
+
+    print(f"Query: {query}")
+    print(f"First 5 dimensions: {first5}")
+    print(f"Shape: {shape}")
+
+
 def verify_embeddings() -> None:
     """Load movies and verify embeddings exist or are built, then print shape."""
     ss = SemanticSearch()
