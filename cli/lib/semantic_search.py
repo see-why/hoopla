@@ -201,6 +201,17 @@ def embed_query_text(query: str) -> None:
     print(f"Shape: {shape}")
 
 
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
+
+
 def verify_embeddings() -> None:
     """Load movies and verify embeddings exist or are built, then print shape."""
     ss = SemanticSearch()
