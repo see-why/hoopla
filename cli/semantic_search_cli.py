@@ -14,6 +14,11 @@ def main():
         "embed_text", help="Generate embedding for a single input text and print a short summary"
     )
     embed_parser.add_argument("text", type=str, help="Text to embed")
+    # embedquery command: embed a query string and show first 5 dims + shape
+    embed_query_parser = subparsers.add_parser(
+        "embedquery", help="Generate embedding for a query string and print first 5 dimensions and shape"
+    )
+    embed_query_parser.add_argument("query", type=str, help="Query text to embed")
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
@@ -40,6 +45,13 @@ def main():
                 from lib.semantic_search import embed_text
 
             embed_text(args.text)
+        case "embedquery":
+            try:
+                from cli.lib.semantic_search import embed_query_text
+            except ImportError:
+                from lib.semantic_search import embed_query_text
+
+            embed_query_text(args.query)
         case "verify_embeddings":
             try:
                 from cli.lib.semantic_search import verify_embeddings
