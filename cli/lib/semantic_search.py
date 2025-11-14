@@ -126,6 +126,52 @@ class SemanticSearch:
 
         return kept
 
+    def search(self, query, limit):
+        """Search the loaded embeddings for the query and return top results.
+
+        Raises ValueError if embeddings are not loaded.
+
+        Returns a list of dicts with keys: 'score', 'title', 'description'.
+        """
+        if self.embeddings is None:
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+
+        # Generate embedding for the query
+        q_emb = self.generate_embedding(query)
+        q_vec = np.asarray(q_emb)
+
+        # Documents are stored in insertion order in self.document_map
+        docs = list(self.document_map.values())
+
+        n = min(len(self.embeddings), len(docs))
+        scores = []
+        for i in range(n):
+            doc_vec = np.asarray(self.embeddings[i])
+            score = float(cosine_similarity(q_vec, doc_vec))
+            scores.append((score, docs[i]))
+
+        # sort by score descending
+        scores.sort(key=lambda x: x[0], reverse=True)
+
+        # normalize limit and slice
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = 5
+        if limit_int < 0:
+            limit_int = 0
+
+        top = scores[:limit_int]
+        results = []
+        for score, doc in top:
+            results.append({
+                "score": score,
+                "title": doc.get("title", "<untitled>"),
+                "description": doc.get("description", ""),
+            })
+
+        return results
+
 
 def verify_model() -> None:
     """Instantiate a SemanticSearch and print basic model info.
