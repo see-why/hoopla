@@ -126,6 +126,74 @@ class SemanticSearch:
 
         return kept
 
+    def search(self, query: str, limit: int) -> list[dict]:
+        """Search the loaded embeddings for the query and return top results.
+
+        Raises ValueError if embeddings are not loaded.
+
+        Returns a list of dicts with keys: 'score', 'title', 'description'.
+        """
+        # Validate query early to provide a clear error message before any
+        # embedding/nearest-neighbor work is attempted.
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+
+        if self.embeddings is None:
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+
+        # Generate embedding for the query
+        q_emb = self.generate_embedding(query)
+        q_vec = np.asarray(q_emb)
+
+        # Documents are stored in insertion order in self.document_map
+        docs = list(self.document_map.values())
+
+        n = min(len(self.embeddings), len(docs))
+
+        # Vectorized cosine similarity computation for speed on large corpora
+        # doc_vecs: (n, dim), q_vec: (dim,)
+        doc_vecs = np.asarray(self.embeddings[:n], dtype=float)
+        q_vec = np.asarray(q_vec, dtype=float)
+
+        # compute norms
+        q_norm = np.linalg.norm(q_vec)
+        doc_norms = np.linalg.norm(doc_vecs, axis=1)
+
+        # safe denominator to avoid division by zero; we'll zero-out scores
+        # where either vector norm is zero after the division.
+        denom = doc_norms * q_norm
+        safe_denom = denom.copy()
+        safe_denom[safe_denom == 0] = 1.0
+
+        raw_scores = np.dot(doc_vecs, q_vec) / safe_denom
+        # zero out entries where denom was zero
+        raw_scores[denom == 0] = 0.0
+
+        # Pair scores with documents
+        scores = [(float(raw_scores[i]), docs[i]) for i in range(n)]
+
+        # sort by score descending
+        scores.sort(key=lambda x: x[0], reverse=True)
+
+        # normalize limit and slice
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = 5
+        if limit_int < 0:
+            limit_int = 0
+
+        top = scores[:limit_int]
+        results = []
+        for score, doc in top:
+            results.append({
+                "score": score,
+                "title": doc.get("title", "<untitled>"),
+                "description": doc.get("description", ""),
+            })
+
+        return results
+
 
 def verify_model() -> None:
     """Instantiate a SemanticSearch and print basic model info.
@@ -201,28 +269,50 @@ def embed_query_text(query: str) -> None:
     print(f"Shape: {shape}")
 
 
-def verify_embeddings() -> None:
-    """Load movies and verify embeddings exist or are built, then print shape."""
-    ss = SemanticSearch()
-    data_dir = Path(__file__).resolve().parents[2] / "data"
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
+
+
+def load_movies_dataset(data_dir: Path | None = None):
+    """Load the movies dataset from the repository `data/` directory.
+
+    Returns a tuple: (documents_list, exception_or_None, Path_to_file).
+    The caller may inspect the exception to decide whether to present a
+    user-visible error (CLI) or simply log at debug level (library).
+    """
+    if data_dir is None:
+        data_dir = Path(__file__).resolve().parents[2] / "data"
+
     movies_path = data_dir / "movies.json"
     if not movies_path.exists():
         movies_path = data_dir / "movies 2.json"
+
     try:
         loaded = json.loads(movies_path.read_text(encoding="utf-8"))
-        # many datasets wrap the list under a key like 'movies'
         if isinstance(loaded, dict) and "movies" in loaded:
             docs = loaded["movies"]
         elif isinstance(loaded, list):
             docs = loaded
         else:
             docs = []
-    except Exception as exc:
-        # If we cannot read or parse the movies file, fall back to an
-        # empty documents list. Log the exception at debug level so the
-        # caller can inspect the cause when needed.
+        return docs, None, movies_path
+    except (OSError, json.JSONDecodeError) as exc:
+        return [], exc, movies_path
+
+
+def verify_embeddings() -> None:
+    """Load movies and verify embeddings exist or are built, then print shape."""
+    ss = SemanticSearch()
+    docs, exc, movies_path = load_movies_dataset()
+    if exc:
         logger.debug("Failed to load movies file %s: %s", movies_path, exc)
-        docs = []
 
     embeddings = ss.load_or_create_embeddings(docs)
     if embeddings is None or len(embeddings) == 0:
