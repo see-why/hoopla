@@ -89,7 +89,14 @@ def main():
                     docs = loaded
                 else:
                     docs = []
-            except Exception:
+            except (OSError, json.JSONDecodeError) as exc:
+                # Provide immediate feedback to the CLI user and avoid
+                # silently falling back to an empty corpus which can be
+                # confusing. Print to stderr so scripts can still parse
+                # normal output.
+                import sys
+
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
                 docs = []
 
             ss = SemanticSearch()
