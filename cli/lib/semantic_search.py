@@ -126,7 +126,7 @@ class SemanticSearch:
 
         return kept
 
-    def search(self, query, limit):
+    def search(self, query: str, limit: int) -> list[dict]:
         """Search the loaded embeddings for the query and return top results.
 
         Raises ValueError if embeddings are not loaded.
