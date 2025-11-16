@@ -149,11 +149,28 @@ class SemanticSearch:
         docs = list(self.document_map.values())
 
         n = min(len(self.embeddings), len(docs))
-        scores = []
-        for i in range(n):
-            doc_vec = np.asarray(self.embeddings[i])
-            score = float(cosine_similarity(q_vec, doc_vec))
-            scores.append((score, docs[i]))
+
+        # Vectorized cosine similarity computation for speed on large corpora
+        # doc_vecs: (n, dim), q_vec: (dim,)
+        doc_vecs = np.asarray(self.embeddings[:n], dtype=float)
+        q_vec = np.asarray(q_vec, dtype=float)
+
+        # compute norms
+        q_norm = np.linalg.norm(q_vec)
+        doc_norms = np.linalg.norm(doc_vecs, axis=1)
+
+        # safe denominator to avoid division by zero; we'll zero-out scores
+        # where either vector norm is zero after the division.
+        denom = doc_norms * q_norm
+        safe_denom = denom.copy()
+        safe_denom[safe_denom == 0] = 1.0
+
+        raw_scores = np.dot(doc_vecs, q_vec) / safe_denom
+        # zero out entries where denom was zero
+        raw_scores[denom == 0] = 0.0
+
+        # Pair scores with documents
+        scores = [(float(raw_scores[i]), docs[i]) for i in range(n)]
 
         # sort by score descending
         scores.sort(key=lambda x: x[0], reverse=True)
