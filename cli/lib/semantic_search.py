@@ -133,6 +133,11 @@ class SemanticSearch:
 
         Returns a list of dicts with keys: 'score', 'title', 'description'.
         """
+        # Validate query early to provide a clear error message before any
+        # embedding/nearest-neighbor work is attempted.
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+
         if self.embeddings is None:
             raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
 
