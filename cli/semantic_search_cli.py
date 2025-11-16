@@ -68,36 +68,16 @@ def main():
         case "search":
             # Lazy imports to avoid requiring heavy deps at module import time
             try:
-                from cli.lib.semantic_search import SemanticSearch
+                from cli.lib.semantic_search import SemanticSearch, load_movies_dataset
             except ImportError:
-                from lib.semantic_search import SemanticSearch
+                from lib.semantic_search import SemanticSearch, load_movies_dataset
 
-            # load movies dataset
-            from pathlib import Path
-            import json
-
-            data_dir = Path(__file__).resolve().parents[1] / "data"
-            movies_path = data_dir / "movies.json"
-            if not movies_path.exists():
-                movies_path = data_dir / "movies 2.json"
-
-            try:
-                loaded = json.loads(movies_path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict) and "movies" in loaded:
-                    docs = loaded["movies"]
-                elif isinstance(loaded, list):
-                    docs = loaded
-                else:
-                    docs = []
-            except (OSError, json.JSONDecodeError) as exc:
-                # Provide immediate feedback to the CLI user and avoid
-                # silently falling back to an empty corpus which can be
-                # confusing. Print to stderr so scripts can still parse
-                # normal output.
+            # load movies dataset using shared helper
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
                 import sys
 
                 print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
-                docs = []
 
             ss = SemanticSearch()
             # ensure embeddings exist (will build if missing)
