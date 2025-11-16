@@ -86,17 +86,20 @@ def main():
             results = ss.search(args.query, args.limit)
 
             # print formatted results
-            for rank, r in enumerate(results, start=1):
-                title = r.get("title", "<untitled>")
-                score = r.get("score", 0.0)
-                desc = (r.get("description") or "").strip()
-                # truncate description to 200 chars for CLI readability
-                if len(desc) > 200:
-                    desc = desc[:200].rstrip() + "..."
+            if not results:
+                print("No results found.")
+            else:
+                for rank, r in enumerate(results, start=1):
+                    title = r.get("title", "<untitled>")
+                    score = r.get("score", 0.0)
+                    desc = (r.get("description") or "").strip()
+                    # truncate description to 200 chars for CLI readability
+                    if len(desc) > 200:
+                        desc = desc[:200].rstrip() + "..."
 
-                print(f"{rank}. {title} (score: {score:.4f})")
-                if desc:
-                    print(f"   {desc}\n")
+                    print(f"{rank}. {title} (score: {score:.4f})")
+                    if desc:
+                        print(f"   {desc}\n")
         case _:
             parser.print_help()
 
