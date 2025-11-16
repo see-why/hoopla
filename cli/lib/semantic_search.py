@@ -263,28 +263,39 @@ def cosine_similarity(vec1, vec2):
     return dot_product / (norm1 * norm2)
 
 
-def verify_embeddings() -> None:
-    """Load movies and verify embeddings exist or are built, then print shape."""
-    ss = SemanticSearch()
-    data_dir = Path(__file__).resolve().parents[2] / "data"
+def load_movies_dataset(data_dir: Path | None = None):
+    """Load the movies dataset from the repository `data/` directory.
+
+    Returns a tuple: (documents_list, exception_or_None, Path_to_file).
+    The caller may inspect the exception to decide whether to present a
+    user-visible error (CLI) or simply log at debug level (library).
+    """
+    if data_dir is None:
+        data_dir = Path(__file__).resolve().parents[2] / "data"
+
     movies_path = data_dir / "movies.json"
     if not movies_path.exists():
         movies_path = data_dir / "movies 2.json"
+
     try:
         loaded = json.loads(movies_path.read_text(encoding="utf-8"))
-        # many datasets wrap the list under a key like 'movies'
         if isinstance(loaded, dict) and "movies" in loaded:
             docs = loaded["movies"]
         elif isinstance(loaded, list):
             docs = loaded
         else:
             docs = []
-    except Exception as exc:
-        # If we cannot read or parse the movies file, fall back to an
-        # empty documents list. Log the exception at debug level so the
-        # caller can inspect the cause when needed.
+        return docs, None, movies_path
+    except (OSError, json.JSONDecodeError) as exc:
+        return [], exc, movies_path
+
+
+def verify_embeddings() -> None:
+    """Load movies and verify embeddings exist or are built, then print shape."""
+    ss = SemanticSearch()
+    docs, exc, movies_path = load_movies_dataset()
+    if exc:
         logger.debug("Failed to load movies file %s: %s", movies_path, exc)
-        docs = []
 
     embeddings = ss.load_or_create_embeddings(docs)
     if embeddings is None or len(embeddings) == 0:
