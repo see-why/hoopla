@@ -25,6 +25,12 @@ def main():
     )
     search_parser.add_argument("query", type=str, help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
+    # chunk command: split a long text into chunks
+    chunk_parser = subparsers.add_parser(
+        "chunk", help="Split text into chunks preserving word boundaries"
+    )
+    chunk_parser.add_argument("text", type=str, help="Text to chunk")
+    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Number of words per chunk")
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
@@ -100,6 +106,29 @@ def main():
                     print(f"{rank}. {title} (score: {score:.4f})")
                     if desc:
                         print(f"   {desc}\n")
+
+        case "chunk":
+            # Chunk by grouping N words together, where N is --chunk-size.
+            text = args.text or ""
+            n = args.chunk_size
+
+            words = text.split()
+            if n <= 0:
+                print("Chunk size must be a positive integer.")
+                return
+
+            chunks = []
+            for i in range(0, len(words), n):
+                chunk_words = words[i : i + n]
+                chunks.append(" ".join(chunk_words))
+
+            total_chars = len(text)
+            print(f"Chunking {total_chars} characters")
+            if not chunks:
+                print("No chunks produced.")
+            else:
+                for idx, c in enumerate(chunks, start=1):
+                    print(f"{idx}. {c}")
         case _:
             parser.print_help()
 
