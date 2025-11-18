@@ -110,7 +110,7 @@ def main():
         case "chunk":
             # Chunk by grouping N words together, where N is --chunk-size.
             text = args.text or ""
-            n = args.chunk_size if getattr(args, "chunk_size", None) is not None else 200
+            n = args.chunk_size
 
             words = text.split()
             if n <= 0:
