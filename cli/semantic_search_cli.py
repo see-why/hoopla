@@ -30,7 +30,7 @@ def main():
         "chunk", help="Split text into chunks preserving word boundaries"
     )
     chunk_parser.add_argument("text", type=str, help="Text to chunk")
-    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Maximum chunk size in characters")
+    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Number of words per chunk")
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
