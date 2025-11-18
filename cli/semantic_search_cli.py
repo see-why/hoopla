@@ -25,6 +25,12 @@ def main():
     )
     search_parser.add_argument("query", type=str, help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
+    # chunk command: split a long text into chunks
+    chunk_parser = subparsers.add_parser(
+        "chunk", help="Split text into chunks preserving word boundaries"
+    )
+    chunk_parser.add_argument("text", type=str, help="Text to chunk")
+    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Maximum chunk size in characters")
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
@@ -100,6 +106,48 @@ def main():
                     print(f"{rank}. {title} (score: {score:.4f})")
                     if desc:
                         print(f"   {desc}\n")
+
+        case "chunk":
+            # Simple word-preserving chunking by max character length.
+            text = args.text or ""
+            size = args.chunk_size if getattr(args, "chunk_size", None) is not None else 200
+
+            words = text.split()
+            chunks = []
+            current = ""
+            for w in words:
+                if current:
+                    candidate = current + " " + w
+                else:
+                    candidate = w
+
+                if len(candidate) <= size:
+                    current = candidate
+                else:
+                    if current:
+                        chunks.append(current)
+                    # if single word longer than size, break it
+                    if len(w) > size:
+                        start = 0
+                        while start < len(w):
+                            part = w[start:start + size]
+                            chunks.append(part)
+                            start += size
+                        current = ""
+                    else:
+                        current = w
+
+            if current:
+                chunks.append(current)
+
+            if not chunks:
+                print("No chunks produced.")
+            else:
+                total = len(chunks)
+                for i, c in enumerate(chunks, start=1):
+                    print(f"Chunk {i}/{total} (len={len(c)}):")
+                    print(c)
+                    print()
         case _:
             parser.print_help()
 
