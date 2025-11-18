@@ -108,46 +108,27 @@ def main():
                         print(f"   {desc}\n")
 
         case "chunk":
-            # Simple word-preserving chunking by max character length.
+            # Chunk by grouping N words together, where N is --chunk-size.
             text = args.text or ""
-            size = args.chunk_size if getattr(args, "chunk_size", None) is not None else 200
+            n = args.chunk_size if getattr(args, "chunk_size", None) is not None else 200
 
             words = text.split()
+            if n <= 0:
+                print("Chunk size must be a positive integer.")
+                return
+
             chunks = []
-            current = ""
-            for w in words:
-                if current:
-                    candidate = current + " " + w
-                else:
-                    candidate = w
+            for i in range(0, len(words), n):
+                chunk_words = words[i : i + n]
+                chunks.append(" ".join(chunk_words))
 
-                if len(candidate) <= size:
-                    current = candidate
-                else:
-                    if current:
-                        chunks.append(current)
-                    # if single word longer than size, break it
-                    if len(w) > size:
-                        start = 0
-                        while start < len(w):
-                            part = w[start:start + size]
-                            chunks.append(part)
-                            start += size
-                        current = ""
-                    else:
-                        current = w
-
-            if current:
-                chunks.append(current)
-
+            total_chars = len(text)
+            print(f"Chunking {total_chars} characters")
             if not chunks:
                 print("No chunks produced.")
             else:
-                total = len(chunks)
-                for i, c in enumerate(chunks, start=1):
-                    print(f"Chunk {i}/{total} (len={len(c)}):")
-                    print(c)
-                    print()
+                for idx, c in enumerate(chunks, start=1):
+                    print(f"{idx}. {c}")
         case _:
             parser.print_help()
 
