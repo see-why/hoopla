@@ -19,6 +19,25 @@ def main():
         "embedquery", help="Generate embedding for a query string and print first 5 dimensions and shape"
     )
     embed_query_parser.add_argument("query", type=str, help="Query text to embed")
+    # chunk command: split text into word chunks (optional overlap)
+    chunk_parser = subparsers.add_parser(
+        "chunk", help="Split input text into word-sized chunks"
+    )
+    chunk_parser.add_argument("text", type=str, help="Text to split into chunks")
+    chunk_parser.add_argument("--size", type=int, default=5, help="Number of words per chunk")
+    # backward-compatible flag name used by tests
+    chunk_parser.add_argument(
+        "--chunk-size",
+        dest="size",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    chunk_parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of words to overlap between consecutive chunks (must be < size)",
+    )
     # semantic search command: query with embedding-based retrieval
     search_parser = subparsers.add_parser(
         "search", help="Search movies using semantic embeddings"
@@ -58,6 +77,45 @@ def main():
                 from lib.semantic_search import embed_query_text
 
             embed_query_text(args.query)
+        case "chunk":
+            # Split text into word chunks, optionally with overlap
+            text = (args.text or "").strip()
+            size = int(args.size) if getattr(args, "size", None) is not None else 0
+            overlap = int(args.overlap) if getattr(args, "overlap", None) is not None else 0
+
+            if size <= 0:
+                print("Error: --size must be a positive integer")
+                return
+            if overlap < 0:
+                print("Error: --overlap must be non-negative")
+                return
+            if overlap >= size:
+                print("Error: --overlap must be less than --size")
+                return
+
+            if not text:
+                print("No text provided.")
+                return
+
+            # report chunking header (count characters in original text)
+            print(f"Chunking {len(text)} characters")
+
+            words = text.split()
+            step = size - overlap
+            chunks = []
+            i = 0
+            while i < len(words):
+                chunk_words = words[i : i + size]
+                if not chunk_words:
+                    break
+                chunks.append(" ".join(chunk_words))
+                if i + size >= len(words):
+                    break
+                i += step
+
+            # Print chunks in numbered format (one per line)
+            for idx, c in enumerate(chunks, start=1):
+                print(f"{idx}. {c}")
         case "verify_embeddings":
             try:
                 from cli.lib.semantic_search import verify_embeddings
