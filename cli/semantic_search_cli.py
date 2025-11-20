@@ -80,8 +80,8 @@ def main():
         case "chunk":
             # Split text into word chunks, optionally with overlap
             text = (args.text or "").strip()
-            size = int(args.size) if getattr(args, "size", None) is not None else 0
-            overlap = int(args.overlap) if getattr(args, "overlap", None) is not None else 0
+            size = args.size
+            overlap = args.overlap
 
             if size <= 0:
                 print("Error: --size must be a positive integer")
