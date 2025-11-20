@@ -106,8 +106,6 @@ def main():
             i = 0
             while i < len(words):
                 chunk_words = words[i : i + size]
-                if not chunk_words:
-                    break
                 chunks.append(" ".join(chunk_words))
                 if i + size >= len(words):
                     break
