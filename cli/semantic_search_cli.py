@@ -4,6 +4,46 @@ import argparse
 import re
 
 
+def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 0) -> list:
+    """Split `text` into sentence-based chunks.
+
+    - Sentences are split using the regex "(?<=[.!?])\\s+" via `re.split`.
+    - Each chunk contains up to `max_chunk_size` sentences.
+    - Consecutive chunks overlap by `overlap` sentences (when overlap > 0).
+
+    Returns a list of chunk strings (sentences joined with a single space).
+    """
+    if not isinstance(text, str):
+        return []
+    txt = text.strip()
+    if not txt:
+        return []
+
+    # Split into sentences preserving punctuation at end of each sentence
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", txt) if s]
+
+    if max_chunk_size <= 0:
+        raise ValueError("max_chunk_size must be a positive integer")
+    if overlap < 0:
+        raise ValueError("overlap must be non-negative")
+    if overlap >= max_chunk_size:
+        raise ValueError("overlap must be less than max_chunk_size")
+
+    step = max_chunk_size - overlap
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        chunk_sents = sentences[i : i + max_chunk_size]
+        if not chunk_sents:
+            break
+        chunks.append(" ".join(chunk_sents))
+        if i + max_chunk_size >= len(sentences):
+            break
+        i += step
+
+    return chunks
+
+
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -67,46 +107,6 @@ def main():
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
     args = parser.parse_args()
-
-
-def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 0) -> list:
-    """Split `text` into sentence-based chunks.
-
-    - Sentences are split using the regex "(?<=[.!?])\\s+" via `re.split`.
-    - Each chunk contains up to `max_chunk_size` sentences.
-    - Consecutive chunks overlap by `overlap` sentences (when overlap > 0).
-
-    Returns a list of chunk strings (sentences joined with a single space).
-    """
-    if not isinstance(text, str):
-        return []
-    txt = text.strip()
-    if not txt:
-        return []
-
-    # Split into sentences preserving punctuation at end of each sentence
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", txt) if s]
-
-    if max_chunk_size <= 0:
-        raise ValueError("max_chunk_size must be a positive integer")
-    if overlap < 0:
-        raise ValueError("overlap must be non-negative")
-    if overlap >= max_chunk_size:
-        raise ValueError("overlap must be less than max_chunk_size")
-
-    step = max_chunk_size - overlap
-    chunks = []
-    i = 0
-    while i < len(sentences):
-        chunk_sents = sentences[i : i + max_chunk_size]
-        if not chunk_sents:
-            break
-        chunks.append(" ".join(chunk_sents))
-        if i + max_chunk_size >= len(sentences):
-            break
-        i += step
-
-    return chunks
 
     match args.command:
         case "verify":
@@ -216,7 +216,6 @@ def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 
                     if desc:
                         print(f"   {desc}\n")
 
-        
         case "semantic_chunk":
             # Split text into semantic chunks using max chunk size and overlap
             text = (args.text or "").strip()
