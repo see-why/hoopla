@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import re
 
 
 def main():
@@ -66,6 +67,46 @@ def main():
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
     args = parser.parse_args()
+
+
+def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 0) -> list:
+    """Split `text` into sentence-based chunks.
+
+    - Sentences are split using the regex "(?<=[.!?])\\s+" via `re.split`.
+    - Each chunk contains up to `max_chunk_size` sentences.
+    - Consecutive chunks overlap by `overlap` sentences (when overlap > 0).
+
+    Returns a list of chunk strings (sentences joined with a single space).
+    """
+    if not isinstance(text, str):
+        return []
+    txt = text.strip()
+    if not txt:
+        return []
+
+    # Split into sentences preserving punctuation at end of each sentence
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", txt) if s]
+
+    if max_chunk_size <= 0:
+        raise ValueError("max_chunk_size must be a positive integer")
+    if overlap < 0:
+        raise ValueError("overlap must be non-negative")
+    if overlap >= max_chunk_size:
+        raise ValueError("overlap must be less than max_chunk_size")
+
+    step = max_chunk_size - overlap
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        chunk_sents = sentences[i : i + max_chunk_size]
+        if not chunk_sents:
+            break
+        chunks.append(" ".join(chunk_sents))
+        if i + max_chunk_size >= len(sentences):
+            break
+        i += step
+
+    return chunks
 
     match args.command:
         case "verify":
@@ -183,35 +224,13 @@ def main():
             max_size = int(args.max_chunk_size)
             overlap = int(args.overlap)
 
-            if max_size <= 0:
-                print("Error: --max-chunk-size must be a positive integer")
-                return
-            if overlap < 0:
-                print("Error: --overlap must be non-negative")
-                return
-            if overlap >= max_size:
-                print("Error: --overlap must be less than --max-chunk-size")
+            try:
+                chunks = semantic_chunk_sentences(text, max_size, overlap)
+            except ValueError as exc:
+                print(f"Error: {exc}")
                 return
 
-            if not text:
-                print("No text provided.")
-                return
-
-            print(f"Chunking {len(text)} characters")
-
-            words = text.split()
-            step = max_size - overlap
-            chunks = []
-            i = 0
-            while i < len(words):
-                chunk_words = words[i : i + max_size]
-                if not chunk_words:
-                    break
-                chunks.append(" ".join(chunk_words))
-                if i + max_size >= len(words):
-                    break
-                i += step
-
+            print(f"Semantically chunking {len(text)} characters")
             for idx, c in enumerate(chunks, start=1):
                 print(f"{idx}. {c}")
         case _:
