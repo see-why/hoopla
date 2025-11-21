@@ -44,12 +44,24 @@ def main():
     )
     search_parser.add_argument("query", type=str, help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
-    # chunk command: split a long text into chunks
-    chunk_parser = subparsers.add_parser(
-        "chunk", help="Split text into chunks preserving word boundaries"
+    
+    # semantic_chunk command: split text into chunks with optional overlap
+    semantic_chunk_parser = subparsers.add_parser(
+        "semantic_chunk", help="Split input text into chunks with optional overlap (semantic chunking)"
     )
-    chunk_parser.add_argument("text", type=str, help="Text to chunk")
-    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Number of words per chunk")
+    semantic_chunk_parser.add_argument("text", type=str, help="Text to chunk")
+    semantic_chunk_parser.add_argument(
+        "--max-chunk-size",
+        type=int,
+        default=4,
+        help="Maximum number of words per semantic chunk (default: 4)",
+    )
+    semantic_chunk_parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of words to overlap between consecutive chunks (default: 0)",
+    )
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
@@ -163,28 +175,45 @@ def main():
                     if desc:
                         print(f"   {desc}\n")
 
-        case "chunk":
-            # Chunk by grouping N words together, where N is --chunk-size.
-            text = args.text or ""
-            n = args.chunk_size
+        
+        case "semantic_chunk":
+            # Split text into semantic chunks using max chunk size and overlap
+            text = (args.text or "").strip()
+            # argparse converts --max-chunk-size to args.max_chunk_size
+            max_size = int(args.max_chunk_size)
+            overlap = int(args.overlap)
 
-            words = text.split()
-            if n <= 0:
-                print("Chunk size must be a positive integer.")
+            if max_size <= 0:
+                print("Error: --max-chunk-size must be a positive integer")
+                return
+            if overlap < 0:
+                print("Error: --overlap must be non-negative")
+                return
+            if overlap >= max_size:
+                print("Error: --overlap must be less than --max-chunk-size")
                 return
 
-            chunks = []
-            for i in range(0, len(words), n):
-                chunk_words = words[i : i + n]
-                chunks.append(" ".join(chunk_words))
+            if not text:
+                print("No text provided.")
+                return
 
-            total_chars = len(text)
-            print(f"Chunking {total_chars} characters")
-            if not chunks:
-                print("No chunks produced.")
-            else:
-                for idx, c in enumerate(chunks, start=1):
-                    print(f"{idx}. {c}")
+            print(f"Chunking {len(text)} characters")
+
+            words = text.split()
+            step = max_size - overlap
+            chunks = []
+            i = 0
+            while i < len(words):
+                chunk_words = words[i : i + max_size]
+                if not chunk_words:
+                    break
+                chunks.append(" ".join(chunk_words))
+                if i + max_size >= len(words):
+                    break
+                i += step
+
+            for idx, c in enumerate(chunks, start=1):
+                print(f"{idx}. {c}")
         case _:
             parser.print_help()
 
