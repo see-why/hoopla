@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -339,3 +340,87 @@ class ChunkedSemanticSearch(SemanticSearch):
         super().__init__(model_name)
         self.chunk_embeddings = None
         self.chunk_metadata = None
+
+    def build_chunk_embeddings(self, documents: list[dict]):
+        """Build embeddings for semantic chunks from the provided documents.
+
+        Splits each document description into sentence-based chunks (4
+        sentences per chunk, 1 sentence overlap), encodes all chunks with
+        the model, saves embeddings and metadata to cache, and returns the
+        embeddings array.
+        """
+        # populate document bookkeeping and get ordered list of kept docs
+        kept_docs = self._build_document_map(documents)
+
+        all_chunks: list[str] = []
+        chunk_metadata: list[dict] = []
+
+        # chunking params as requested
+        max_chunk_size = 4
+        overlap = 1
+
+        for _, doc in enumerate(kept_docs):
+            desc = (doc.get("description") or "").strip()
+            if not desc:
+                # skip docs with empty descriptions
+                continue
+
+            # split into sentences using the requested regex
+            sentences = [s for s in re.split(r"(?<=[.!?])\s+", desc) if s]
+
+            # create chunks for this document
+            step = max_chunk_size - overlap
+            doc_chunks: list[str] = []
+            i = 0
+            while i < len(sentences):
+                chunk_sents = sentences[i : i + max_chunk_size]
+                if not chunk_sents:
+                    break
+                doc_chunks.append(" ".join(chunk_sents))
+                if i + max_chunk_size >= len(sentences):
+                    break
+                i += step
+
+            total_chunks = len(doc_chunks)
+            for chunk_idx, chunk_text in enumerate(doc_chunks):
+                all_chunks.append(chunk_text)
+                # movie_idx should be the index in self.documents
+                try:
+                    movie_idx_in_docs = int(self.documents.index(doc))
+                except ValueError:
+                    movie_idx_in_docs = -1
+                chunk_metadata.append(
+                    {
+                        "movie_idx": movie_idx_in_docs,
+                        "chunk_idx": int(chunk_idx),
+                        "total_chunks": int(total_chunks),
+                    }
+                )
+
+        # encode all chunks (may be empty)
+        if all_chunks:
+            embeddings = self.model.encode(all_chunks, show_progress_bar=True)
+            self.chunk_embeddings = np.array(embeddings)
+        else:
+            self.chunk_embeddings = np.zeros((0,))
+
+        self.chunk_metadata = chunk_metadata
+
+        # persist embeddings and metadata
+        cache_dir = Path(__file__).resolve().parents[2] / "cache"
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            logger.debug("Could not create cache directory %s", cache_dir)
+
+        emb_path = cache_dir / "chunk_embeddings.npy"
+        np.save(str(emb_path), self.chunk_embeddings)
+
+        meta_path = cache_dir / "chunk_metadata.json"
+        try:
+            with open(meta_path, "w", encoding="utf-8") as fh:
+                json.dump({"chunks": chunk_metadata, "total_chunks": len(all_chunks)}, fh, indent=2)
+        except OSError:
+            logger.debug("Failed to write chunk metadata to %s", meta_path)
+
+        return self.chunk_embeddings
