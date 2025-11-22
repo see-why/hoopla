@@ -14,9 +14,9 @@ class SemanticSearch:
     `self.model` for downstream usage.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         # Initialize the SentenceTransformer model instance
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.model = SentenceTransformer(model_name)
         # embeddings storage and document bookkeeping
         self.embeddings = None
         self.documents = None
@@ -325,3 +325,17 @@ def verify_embeddings() -> None:
         print(f"Embeddings shape: {embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions")
     except Exception:
         print(f"Embeddings shape: {len(embeddings)} vectors")
+
+
+class ChunkedSemanticSearch(SemanticSearch):
+    """SemanticSearch variant that stores precomputed chunk embeddings.
+
+    Attributes:
+        chunk_embeddings: numpy array of chunk embeddings (or None)
+        chunk_metadata: list of metadata dicts corresponding to each chunk
+    """
+
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
+        super().__init__(model_name)
+        self.chunk_embeddings = None
+        self.chunk_metadata = None
