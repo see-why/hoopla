@@ -1,5 +1,7 @@
-from sentence_transformers import SentenceTransformer
-import numpy as np
+try:
+    import numpy as np
+except Exception:
+    np = None
 from pathlib import Path
 import json
 import logging
@@ -16,8 +18,18 @@ class SemanticSearch:
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
-        # Initialize the SentenceTransformer model instance
-        self.model = SentenceTransformer(model_name)
+        # Initialize the SentenceTransformer model instance lazily so
+        # importing this module doesn't require the heavy dependency.
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            self.model = SentenceTransformer(model_name)
+        except Exception:
+            # Model not available in this environment; keep `self.model`
+            # set to None and defer the error until methods that require
+            # the model are invoked.
+            self.model = None
+            logger.debug("sentence_transformers not available; model not loaded", exc_info=True)
         # embeddings storage and document bookkeeping
         self.embeddings = None
         self.documents = None
@@ -56,6 +68,10 @@ class SemanticSearch:
         texts = [f"{d.get('title') or ''}: {d.get('description') or ''}" for d in kept_docs]
 
         # encode with progress bar
+        if self.model is None:
+            raise RuntimeError("SentenceTransformer model not loaded; install sentence_transformers to build embeddings")
+        if np is None:
+            raise RuntimeError("numpy is required to build embeddings; install numpy")
         embeddings = self.model.encode(texts, show_progress_bar=True)
         self.embeddings = np.array(embeddings)
 
@@ -399,10 +415,15 @@ class ChunkedSemanticSearch(SemanticSearch):
 
         # encode all chunks (may be empty)
         if all_chunks:
+            if self.model is None:
+                raise RuntimeError("SentenceTransformer model not loaded; install sentence_transformers to build chunk embeddings")
+            if np is None:
+                raise RuntimeError("numpy is required to build chunk embeddings; install numpy")
             embeddings = self.model.encode(all_chunks, show_progress_bar=True)
             self.chunk_embeddings = np.array(embeddings)
         else:
-            self.chunk_embeddings = np.zeros((0,))
+            # empty numpy array
+            self.chunk_embeddings = np.zeros((0,)) if np is not None else None
 
         self.chunk_metadata = chunk_metadata
 
@@ -424,3 +445,39 @@ class ChunkedSemanticSearch(SemanticSearch):
             logger.debug("Failed to write chunk metadata to %s", meta_path)
 
         return self.chunk_embeddings
+
+    def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+        """Load chunk embeddings and metadata from cache if present, otherwise build.
+
+        Populates `self.documents` and `self.document_map` from `documents`.
+        If both `cache/chunk_embeddings.npy` and `cache/chunk_metadata.json`
+        exist, load them into `self.chunk_embeddings` and
+        `self.chunk_metadata` and return the embeddings. Otherwise call
+        `build_chunk_embeddings` to create and persist them.
+        """
+        # populate document bookkeeping
+        self._build_document_map(documents)
+
+        cache_dir = Path(__file__).resolve().parents[2] / "cache"
+        emb_path = cache_dir / "chunk_embeddings.npy"
+        meta_path = cache_dir / "chunk_metadata.json"
+
+        if emb_path.exists() and meta_path.exists():
+            try:
+                if np is None:
+                    raise RuntimeError("numpy is required to load chunk embeddings; install numpy")
+                arr = np.load(str(emb_path))
+                with open(meta_path, "r", encoding="utf-8") as fh:
+                    meta = json.load(fh)
+                chunks = meta.get("chunks", [])
+
+                # assign loaded values
+                self.chunk_embeddings = arr
+                self.chunk_metadata = chunks
+
+                return self.chunk_embeddings
+            except Exception:
+                logger.debug("Failed to load cached chunk embeddings or metadata; rebuilding", exc_info=True)
+
+        # fallback: rebuild
+        return self.build_chunk_embeddings(documents)
