@@ -95,13 +95,13 @@ def main():
         "--max-chunk-size",
         type=int,
         default=4,
-        help="Maximum number of words per semantic chunk (default: 4)",
+        help="Maximum number of sentences per semantic chunk (default: 4)",
     )
     semantic_chunk_parser.add_argument(
         "--overlap",
         type=int,
         default=0,
-        help="Number of words to overlap between consecutive chunks (default: 0)",
+        help="Number of sentences to overlap between consecutive chunks (default: 0)",
     )
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
