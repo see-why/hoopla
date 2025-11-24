@@ -3,6 +3,7 @@ try:
 except Exception:
     np = None
 from pathlib import Path
+from typing import Any
 import json
 import logging
 import re
@@ -446,7 +447,7 @@ class ChunkedSemanticSearch(SemanticSearch):
 
         return self.chunk_embeddings
 
-    def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+    def load_or_create_chunk_embeddings(self, documents: list[dict]) -> Any:
         """Load chunk embeddings and metadata from cache if present, otherwise build.
 
         Populates `self.documents` and `self.document_map` from `documents`.
