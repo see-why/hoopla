@@ -60,6 +60,8 @@ def main():
         "embedquery", help="Generate embedding for a query string and print first 5 dimensions and shape"
     )
     embed_query_parser.add_argument("query", type=str, help="Query text to embed")
+    # embed_chunks command: build or load chunk embeddings and report
+    subparsers.add_parser("embed_chunks", help="Build or load chunk embeddings and print a summary")
     # chunk command: split text into word chunks (optional overlap)
     chunk_parser = subparsers.add_parser(
         "chunk", help="Split input text into word-sized chunks"
@@ -136,6 +138,28 @@ def main():
                 from lib.semantic_search import embed_query_text
 
             embed_query_text(args.query)
+        case "embed_chunks":
+            try:
+                from cli.lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+            except ImportError:
+                from lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
+                import sys
+
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+
+            css = ChunkedSemanticSearch()
+            embeddings = css.load_or_create_chunk_embeddings(docs)
+
+            # embeddings is a numpy array
+            try:
+                count = len(embeddings)
+            except Exception:
+                count = 0
+
+            print(f"Generated {count} chunked embeddings")
         case "chunk":
             # Split text into word chunks, optionally with overlap
             text = (args.text or "").strip()
