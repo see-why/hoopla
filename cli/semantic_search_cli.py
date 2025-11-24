@@ -1,6 +1,47 @@
 #!/usr/bin/env python3
 
 import argparse
+import re
+
+
+def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 0) -> list:
+    """Split `text` into sentence-based chunks.
+
+    - Sentences are split using the regex "(?<=[.!?])\\s+" via `re.split`.
+    - Each chunk contains up to `max_chunk_size` sentences.
+    - Consecutive chunks overlap by `overlap` sentences (when overlap > 0).
+
+    Returns a list of chunk strings (sentences joined with a single space).
+    """
+    if not isinstance(text, str):
+        return []
+    txt = text.strip()
+    if not txt:
+        return []
+
+    # Split into sentences preserving punctuation at end of each sentence
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", txt) if s]
+
+    if max_chunk_size <= 0:
+        raise ValueError("max_chunk_size must be a positive integer")
+    if overlap < 0:
+        raise ValueError("overlap must be non-negative")
+    if overlap >= max_chunk_size:
+        raise ValueError("overlap must be less than max_chunk_size")
+
+    step = max_chunk_size - overlap
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        chunk_sents = sentences[i : i + max_chunk_size]
+        if not chunk_sents:
+            break
+        chunks.append(" ".join(chunk_sents))
+        if i + max_chunk_size >= len(sentences):
+            break
+        i += step
+
+    return chunks
 
 
 def main():
@@ -44,12 +85,24 @@ def main():
     )
     search_parser.add_argument("query", type=str, help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
-    # chunk command: split a long text into chunks
-    chunk_parser = subparsers.add_parser(
-        "chunk", help="Split text into chunks preserving word boundaries"
+    
+    # semantic_chunk command: split text into chunks with optional overlap
+    semantic_chunk_parser = subparsers.add_parser(
+        "semantic_chunk", help="Split input text into chunks with optional overlap (semantic chunking)"
     )
-    chunk_parser.add_argument("text", type=str, help="Text to chunk")
-    chunk_parser.add_argument("--chunk-size", dest="chunk_size", type=int, default=200, help="Number of words per chunk")
+    semantic_chunk_parser.add_argument("text", type=str, help="Text to chunk")
+    semantic_chunk_parser.add_argument(
+        "--max-chunk-size",
+        type=int,
+        default=4,
+        help="Maximum number of sentences per semantic chunk (default: 4)",
+    )
+    semantic_chunk_parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of sentences to overlap between consecutive chunks (default: 0)",
+    )
     # verify_embeddings command: build or load embeddings for the movie corpus
     subparsers.add_parser("verify_embeddings", help="Build or load movie embeddings and print their shape")
 
@@ -163,28 +216,26 @@ def main():
                     if desc:
                         print(f"   {desc}\n")
 
-        case "chunk":
-            # Chunk by grouping N words together, where N is --chunk-size.
-            text = args.text or ""
-            n = args.chunk_size
+        case "semantic_chunk":
+            # Split text into semantic chunks using max chunk size and overlap
+            text = (args.text or "").strip()
+            # argparse converts --max-chunk-size to args.max_chunk_size
+            max_size = int(args.max_chunk_size)
+            overlap = int(args.overlap)
 
-            words = text.split()
-            if n <= 0:
-                print("Chunk size must be a positive integer.")
+            if not text:
+                print("No text provided.")
                 return
 
-            chunks = []
-            for i in range(0, len(words), n):
-                chunk_words = words[i : i + n]
-                chunks.append(" ".join(chunk_words))
+            try:
+                chunks = semantic_chunk_sentences(text, max_size, overlap)
+            except ValueError as exc:
+                print(f"Error: {exc}")
+                return
 
-            total_chars = len(text)
-            print(f"Chunking {total_chars} characters")
-            if not chunks:
-                print("No chunks produced.")
-            else:
-                for idx, c in enumerate(chunks, start=1):
-                    print(f"{idx}. {c}")
+            print(f"Semantically chunking {len(text)} characters")
+            for idx, c in enumerate(chunks, start=1):
+                print(f"{idx}. {c}")
         case _:
             parser.print_help()
 
