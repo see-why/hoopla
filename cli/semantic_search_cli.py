@@ -223,6 +223,10 @@ def main():
             max_size = int(args.max_chunk_size)
             overlap = int(args.overlap)
 
+            if not text:
+                print("No text provided.")
+                return
+
             try:
                 chunks = semantic_chunk_sentences(text, max_size, overlap)
             except ValueError as exc:
