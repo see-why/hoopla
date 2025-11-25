@@ -1,6 +1,6 @@
 try:
     import numpy as np
-except Exception:
+except (ImportError, ModuleNotFoundError):
     np = None
 from pathlib import Path
 from typing import Any
