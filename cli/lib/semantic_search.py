@@ -376,7 +376,7 @@ class ChunkedSemanticSearch(SemanticSearch):
         max_chunk_size = 4
         overlap = 1
 
-        for _, doc in enumerate(kept_docs):
+        for doc in kept_docs:
             desc = (doc.get("description") or "").strip()
             if not desc:
                 # skip docs with empty descriptions
