@@ -16,3 +16,5 @@ cache/term_frequencies.pkl
 cache/doc_lengths.pkl
 cli/cache/movie_embeddings.npy
 cache/movie_embeddings.npy
+cache/chunk_metadata.json
+cache/chunk_embeddings.npy
