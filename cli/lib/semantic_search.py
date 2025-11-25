@@ -25,7 +25,7 @@ class SemanticSearch:
             from sentence_transformers import SentenceTransformer
 
             self.model = SentenceTransformer(model_name)
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             # Model not available in this environment; keep `self.model`
             # set to None and defer the error until methods that require
             # the model are invoked.
