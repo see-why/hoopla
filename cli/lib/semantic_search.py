@@ -334,7 +334,9 @@ def verify_embeddings() -> None:
     ss = SemanticSearch()
     docs, exc, movies_path = load_movies_dataset()
     if exc:
-        logger.debug("Failed to load movies file %s: %s", movies_path, exc)
+        import sys
+        print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     embeddings = ss.load_or_create_embeddings(docs)
     if embeddings is None or len(embeddings) == 0:
