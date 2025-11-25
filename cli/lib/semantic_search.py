@@ -100,6 +100,10 @@ class SemanticSearch:
         # populate document bookkeeping consistently
         self._build_document_map(documents)
 
+        if np is None:
+            # Fall back to rebuilding which will raise a proper error
+            return self.build_embeddings(documents)
+
         cache_path = Path(__file__).resolve().parents[2] / "cache" / "movie_embeddings.npy"
         if cache_path.exists():
             try:
