@@ -149,6 +149,7 @@ def main():
                 import sys
 
                 print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
 
             css = ChunkedSemanticSearch()
             embeddings = css.load_or_create_chunk_embeddings(docs)
@@ -217,6 +218,7 @@ def main():
                 import sys
 
                 print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
 
             ss = SemanticSearch()
             # ensure embeddings exist (will build if missing)
