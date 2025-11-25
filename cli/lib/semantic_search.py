@@ -423,8 +423,11 @@ class ChunkedSemanticSearch(SemanticSearch):
             embeddings = self.model.encode(all_chunks, show_progress_bar=True)
             self.chunk_embeddings = np.array(embeddings)
         else:
-            # empty numpy array
-            self.chunk_embeddings = np.zeros((0,)) if np is not None else None
+            # empty 2D array with shape (0, embedding_dim)
+            # Use a placeholder dimension that matches typical model output (384 for all-MiniLM-L6-v2)
+            # This ensures consistent 2D shape even when there are no chunks
+            embedding_dim = 384 if self.model is None else self.model.get_sentence_embedding_dimension()
+            self.chunk_embeddings = np.zeros((0, embedding_dim)) if np is not None else None
 
         self.chunk_metadata = chunk_metadata
 
