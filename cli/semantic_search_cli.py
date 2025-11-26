@@ -277,19 +277,13 @@ def main():
                 for i, r in enumerate(results, start=1):
                     title = r.get("title", "<untitled>")
                     score = r.get("score", 0.0)
-                    desc = r.get("document", "").strip()
-                    # add ellipsis if description was truncated
-                    movie_idx = r.get("metadata", {}).get("movie_idx", -1)
-                    original_desc = (
-                        docs[movie_idx].get("description", "")
-                        if movie_idx >= 0 and movie_idx < len(docs)
-                        else ""
-                    )
-                    if desc and len(original_desc) > 100:
-                        desc = desc + "..."
+                    desc = (r.get("description") or "").strip()
+                    # truncate description to 200 chars for CLI readability (consistent with search command)
+                    if len(desc) > 200:
+                        desc = desc[:200].rstrip() + "..."
 
                     print(f"\n{i}. {title} (score: {score:.4f})")
-                    print(f"   {desc}\n")
+                    print(f"   {desc}")
 
         case "semantic_chunk":
             # Split text into semantic chunks using max chunk size and overlap
