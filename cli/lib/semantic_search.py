@@ -510,7 +510,7 @@ class ChunkedSemanticSearch(SemanticSearch):
             limit: Maximum number of results to return (default 10)
 
         Returns:
-            List of result dictionaries with keys: id, title, document (truncated to 100 chars), score, metadata
+            List of result dictionaries with keys: id, title, description, score, metadata
 
         Raises:
             ValueError: If query is empty or chunk embeddings are not loaded
@@ -595,7 +595,7 @@ class ChunkedSemanticSearch(SemanticSearch):
             results.append({
                 "score": round(chunk_score["score"], SCORE_PRECISION),
                 "title": title,
-                "description": description[:100],
+                "description": description,
                 "id": doc_id,
                 "metadata": metadata
             })
