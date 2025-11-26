@@ -593,10 +593,10 @@ class ChunkedSemanticSearch(SemanticSearch):
             metadata.pop("score", None)  # Remove score from metadata
 
             results.append({
-                "id": doc_id,
-                "title": title,
-                "document": description[:100],
                 "score": round(chunk_score["score"], SCORE_PRECISION),
+                "title": title,
+                "description": description[:100],
+                "id": doc_id,
                 "metadata": metadata
             })
 
