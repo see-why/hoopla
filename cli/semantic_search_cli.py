@@ -279,7 +279,13 @@ def main():
                     score = r.get("score", 0.0)
                     desc = r.get("document", "").strip()
                     # add ellipsis if description was truncated
-                    if desc and len(r.get("document", "")) > 0:
+                    movie_idx = r.get("metadata", {}).get("movie_idx", -1)
+                    original_desc = (
+                        docs[movie_idx].get("description", "")
+                        if movie_idx >= 0 and movie_idx < len(docs)
+                        else ""
+                    )
+                    if desc and len(original_desc) > 100:
                         desc = desc + "..."
 
                     print(f"\n{i}. {title} (score: {score:.4f})")
