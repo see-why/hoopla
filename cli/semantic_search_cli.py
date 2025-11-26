@@ -88,6 +88,13 @@ def main():
     search_parser.add_argument("query", type=str, help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
     
+    # search_chunked command: query using chunked embeddings
+    search_chunked_parser = subparsers.add_parser(
+        "search_chunked", help="Search movies using chunked semantic embeddings"
+    )
+    search_chunked_parser.add_argument("query", type=str, help="Search query")
+    search_chunked_parser.add_argument("--limit", type=int, default=5, help="Number of top results to return")
+    
     # semantic_chunk command: split text into chunks with optional overlap
     semantic_chunk_parser = subparsers.add_parser(
         "semantic_chunk", help="Split input text into chunks with optional overlap (semantic chunking)"
@@ -241,6 +248,42 @@ def main():
                     print(f"{rank}. {title} (score: {score:.4f})")
                     if desc:
                         print(f"   {desc}\n")
+
+        case "search_chunked":
+            # Lazy imports to avoid requiring heavy deps at module import time
+            try:
+                from cli.lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+            except ImportError:
+                from lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+
+            # load movies dataset using shared helper
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
+                import sys
+
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+
+            css = ChunkedSemanticSearch()
+            # ensure chunk embeddings exist (will build if missing)
+            css.load_or_create_chunk_embeddings(docs)
+
+            results = css.search_chunks(args.query, args.limit)
+
+            # print formatted results
+            if not results:
+                print("No results found.")
+            else:
+                for i, r in enumerate(results, start=1):
+                    title = r.get("title", "<untitled>")
+                    score = r.get("score", 0.0)
+                    desc = (r.get("description") or "").strip()
+                    # truncate description to 200 chars for CLI readability (consistent with search command)
+                    if len(desc) > 200:
+                        desc = desc[:200].rstrip() + "..."
+
+                    print(f"\n{i}. {title} (score: {score:.4f})")
+                    print(f"   {desc}")
 
         case "semantic_chunk":
             # Split text into semantic chunks using max chunk size and overlap

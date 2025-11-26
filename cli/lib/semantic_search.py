@@ -8,6 +8,9 @@ import json
 import logging
 import re
 
+# Precision for rounding similarity scores
+SCORE_PRECISION = 4
+
 logger = logging.getLogger(__name__)
 
 
@@ -495,3 +498,106 @@ class ChunkedSemanticSearch(SemanticSearch):
 
         # fallback: rebuild
         return self.build_chunk_embeddings(documents)
+
+    def search_chunks(self, query: str, limit: int = 10) -> list[dict]:
+        """Search chunk embeddings for the query and return top movie results.
+
+        Calculates cosine similarity between the query and all chunk embeddings,
+        then aggregates chunk scores by movie (keeping the highest score per movie).
+
+        Args:
+            query: The search query string
+            limit: Maximum number of results to return (default 10)
+
+        Returns:
+            List of result dictionaries with keys: id, title, description, score, metadata
+
+        Raises:
+            ValueError: If query is empty or chunk embeddings are not loaded
+            RuntimeError: If required dependencies (numpy, model) are not available
+        """
+        # Validate query
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+
+        if self.chunk_embeddings is None:
+            raise ValueError("No chunk embeddings loaded. Call `load_or_create_chunk_embeddings` first.")
+
+        if np is None:
+            raise RuntimeError("numpy is required for search_chunks; install numpy")
+
+        # Generate embedding for the query
+        q_emb = self.generate_embedding(query)
+        q_vec = np.asarray(q_emb, dtype=float)
+
+        # Populate chunk scores list
+        chunk_scores = []
+
+        # Calculate cosine similarity for each chunk
+        chunk_vecs = np.asarray(self.chunk_embeddings, dtype=float)
+        q_norm = np.linalg.norm(q_vec)
+        chunk_norms = np.linalg.norm(chunk_vecs, axis=1)
+
+        # safe denominator to avoid division by zero
+        denom = chunk_norms * q_norm
+        safe_denom = denom.copy()
+        safe_denom[safe_denom == 0] = 1.0
+
+        similarities = np.dot(chunk_vecs, q_vec) / safe_denom
+        similarities[denom == 0] = 0.0
+
+        # Build chunk scores list with metadata
+        for i, similarity in enumerate(similarities):
+            if i < len(self.chunk_metadata):
+                metadata = self.chunk_metadata[i]
+                chunk_scores.append({
+                    "chunk_idx": metadata["chunk_idx"],
+                    "movie_idx": metadata["movie_idx"],
+                    "score": float(similarity)
+                })
+
+        # Aggregate scores by movie (keep highest score per movie)
+        movie_scores = {}
+        for chunk_score in chunk_scores:
+            movie_idx = chunk_score["movie_idx"]
+            score = chunk_score["score"]
+
+            if movie_idx not in movie_scores or score > movie_scores[movie_idx]["score"]:
+                movie_scores[movie_idx] = chunk_score
+
+        # Sort by score descending
+        sorted_movies = sorted(movie_scores.items(), key=lambda x: x[1]["score"], reverse=True)
+
+        # Normalize limit
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = 10
+        if limit_int < 0:
+            limit_int = 0
+
+        # Filter to top limit
+        top_movies = sorted_movies[:limit_int]
+
+        # Format results
+        results = []
+        for movie_idx, chunk_score in top_movies:
+            if movie_idx < 0 or movie_idx >= len(self.documents):
+                continue
+
+            doc = self.documents[movie_idx]
+            doc_id = doc.get("id", "")
+            title = doc.get("title", "<untitled>")
+            description = doc.get("description", "")
+            metadata = chunk_score.copy()
+            metadata.pop("score", None)  # Remove score from metadata
+
+            results.append({
+                "score": round(chunk_score["score"], SCORE_PRECISION),
+                "title": title,
+                "description": description,
+                "id": doc_id,
+                "metadata": metadata
+            })
+
+        return results
