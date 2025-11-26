@@ -289,7 +289,7 @@ def main():
                         desc = desc + "..."
 
                     print(f"\n{i}. {title} (score: {score:.4f})")
-                    print(f"   {desc}")
+                    print(f"   {desc}\n")
 
         case "semantic_chunk":
             # Split text into semantic chunks using max chunk size and overlap
