@@ -7,27 +7,45 @@ import re
 def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 0) -> list:
     """Split `text` into sentence-based chunks.
 
+    - Strips leading and trailing whitespace from input text
     - Sentences are split using the regex "(?<=[.!?])\\s+" via `re.split`.
+    - If only one sentence without ending punctuation, treats whole text as one sentence
     - Each chunk contains up to `max_chunk_size` sentences.
     - Consecutive chunks overlap by `overlap` sentences (when overlap > 0).
+    - Strips whitespace from each sentence and only includes non-empty sentences
 
     Returns a list of chunk strings (sentences joined with a single space).
     """
     if not isinstance(text, str):
         return []
+    
+    # Strip leading and trailing whitespace from input
     txt = text.strip()
     if not txt:
         return []
 
-    # Split into sentences preserving punctuation at end of each sentence
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", txt) if s]
-
+    # Validate parameters before processing
     if max_chunk_size <= 0:
         raise ValueError("max_chunk_size must be a positive integer")
     if overlap < 0:
         raise ValueError("overlap must be non-negative")
     if overlap >= max_chunk_size:
         raise ValueError("overlap must be less than max_chunk_size")
+
+    # Split into sentences preserving punctuation at end of each sentence
+    raw_sentences = re.split(r"(?<=[.!?])\s+", txt)
+    
+    # Strip whitespace from each sentence and filter out empty ones
+    sentences = [s.strip() for s in raw_sentences if s.strip()]
+    
+    # If only one sentence and it doesn't end with punctuation, treat whole text as one sentence
+    if len(sentences) == 1 and sentences[0] and not sentences[0][-1] in '.!?':
+        # The whole text is one sentence without ending punctuation
+        sentences = [txt]
+    elif len(sentences) == 0:
+        # Edge case: if splitting resulted in no sentences but we have text,
+        # treat the whole text as one sentence
+        sentences = [txt]
 
     step = max_chunk_size - overlap
     chunks = []
@@ -36,7 +54,11 @@ def semantic_chunk_sentences(text: str, max_chunk_size: int = 4, overlap: int = 
         chunk_sents = sentences[i : i + max_chunk_size]
         if not chunk_sents:
             break
-        chunks.append(" ".join(chunk_sents))
+        # Join sentences and strip any extra whitespace
+        chunk_text = " ".join(chunk_sents).strip()
+        # Only add non-empty chunks
+        if chunk_text:
+            chunks.append(chunk_text)
         if i + max_chunk_size >= len(sentences):
             break
         i += step
