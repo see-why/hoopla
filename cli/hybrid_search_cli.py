@@ -3,8 +3,12 @@
 import argparse
 import os
 
-from cli.keyword_search_cli import InvertedIndex
-from cli.lib.semantic_search import ChunkedSemanticSearch
+try:
+    from cli.keyword_search_cli import InvertedIndex
+    from cli.lib.semantic_search import ChunkedSemanticSearch
+except ImportError:
+    from keyword_search_cli import InvertedIndex
+    from lib.semantic_search import ChunkedSemanticSearch
 
 
 class HybridSearch:
