@@ -21,9 +21,12 @@ class HybridSearch:
         if not os.path.exists(self.idx.index_path):
             self.idx.build()
             self.idx.save()
+        try:
+            self.idx.load()
+        except FileNotFoundError:
+            raise RuntimeError(f"Failed to load the index from {self.idx.index_path}. The index file is missing.")
 
     def _bm25_search(self, query, limit):
-        self.idx.load()
         return self.idx.bm25_search(query, limit)
 
     def weighted_search(self, query, alpha, limit=5):
