@@ -40,7 +40,7 @@ class HybridSearch:
         self.semantic_search.load_or_create_chunk_embeddings(documents)
 
         self.idx = InvertedIndex()
-        if not os.path.exists(self.idx.index_path):
+        if not os.path.exists("cache/index.pkl"):
             self.idx.build()
             self.idx.save()
         try:
