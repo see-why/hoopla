@@ -64,9 +64,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    match args.command:
-        case _:
-            parser.print_help()
+    parser.print_help()
 
 
 if __name__ == "__main__":
