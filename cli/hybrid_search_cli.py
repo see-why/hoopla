@@ -35,6 +35,22 @@ class HybridSearch:
         results = hs._bm25_search("example query", limit=5)
     """
     def __init__(self, documents):
+        """
+        Initialize the HybridSearch object.
+
+        Args:
+            documents (list of dict): A list of documents, where each document is a dict
+                with keys 'id', 'title', and 'description'.
+
+        Initialization steps:
+            - Stores the provided documents.
+            - Initializes the semantic search engine and loads or creates chunk embeddings for the documents.
+            - Initializes the inverted index. If the index does not exist on disk, it is built and saved.
+
+        Raises:
+            OSError: If there are issues reading from or writing to disk during index or embedding operations.
+            Exception: Propagates exceptions raised by ChunkedSemanticSearch or InvertedIndex during initialization.
+        """
         self.documents = documents
         self.semantic_search = ChunkedSemanticSearch()
         self.semantic_search.load_or_create_chunk_embeddings(documents)
