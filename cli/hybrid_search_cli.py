@@ -12,6 +12,28 @@ except ImportError:
 
 
 class HybridSearch:
+    """
+    HybridSearch provides a unified interface for performing hybrid search over a collection of documents,
+    combining both semantic (embedding-based) and keyword (BM25) search techniques.
+
+    Args:
+        documents (list): A list of documents to be indexed and searched. Each document should be a string
+            or an object compatible with the underlying semantic and keyword search components.
+
+    Initialization:
+        - Initializes a semantic search component (`ChunkedSemanticSearch`) and loads or creates chunk embeddings
+          for the provided documents.
+        - Initializes a keyword search component (`InvertedIndex`). If the index does not exist, it is built and saved.
+
+    Methods:
+        - _bm25_search(query, limit): Performs a BM25 keyword search for the given query, returning up to `limit` results.
+        - weighted_search(query, alpha, limit=5): (Not implemented) Intended for weighted hybrid search.
+        - rrf_search(query, k, limit=10): (Not implemented) Intended for Reciprocal Rank Fusion hybrid search.
+
+    Usage:
+        hs = HybridSearch(documents)
+        results = hs._bm25_search("example query", limit=5)
+    """
     def __init__(self, documents):
         self.documents = documents
         self.semantic_search = ChunkedSemanticSearch()
