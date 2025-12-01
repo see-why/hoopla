@@ -65,6 +65,16 @@ class HybridSearch:
             raise RuntimeError(f"Failed to load the index from {self.idx.index_path}. The index file is missing.")
 
     def _bm25_search(self, query, limit):
+        """
+        Perform a BM25 keyword search using the inverted index.
+
+        Args:
+            query (str): The search query string.
+            limit (int): The maximum number of results to return.
+
+        Returns:
+            list of tuple: A list of (doc_id, score) tuples representing the top matching documents.
+        """
         return self.idx.bm25_search(query, limit)
 
     def weighted_search(self, query, alpha, limit=5):
