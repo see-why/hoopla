@@ -41,7 +41,7 @@ class HybridSearch:
 
         self.idx = InvertedIndex()
         if not os.path.exists("cache/index.pkl"):
-            self.idx.build()
+            self.idx.build(self.documents)
             self.idx.save()
         try:
             self.idx.load()
