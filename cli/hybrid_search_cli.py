@@ -77,8 +77,84 @@ class HybridSearch:
         """
         return self.idx.bm25_search(query, limit)
 
+    @staticmethod
+    def normalize(scores):
+        """
+        Normalize a list of scores using min-max normalization.
+
+        Args:
+            scores (list of float): The scores to normalize.
+
+        Returns:
+            list of float: The normalized scores (0.0 to 1.0 range).
+        """
+        if not scores:
+            return []
+        
+        min_score = min(scores)
+        max_score = max(scores)
+        
+        if min_score == max_score:
+            # All scores are the same, normalize to 1.0
+            return [1.0] * len(scores)
+        
+        # Apply min-max normalization: (x - min) / (max - min)
+        return [(score - min_score) / (max_score - min_score) for score in scores]
+
     def weighted_search(self, query, alpha, limit=5):
-        raise NotImplementedError("Weighted hybrid search is not implemented yet.")
+        """
+        Perform weighted hybrid search combining BM25 and semantic search.
+
+        Args:
+            query (str): The search query string.
+            alpha (float): Weight for BM25 scores (0.0-1.0). Semantic weight is (1-alpha).
+            limit (int): The maximum number of results to return.
+
+        Returns:
+            list of tuple: A list of (doc_id, hybrid_score) tuples sorted by hybrid score descending.
+        """
+        # Get results from both search methods (500x limit to ensure enough results)
+        expanded_limit = limit * 500
+        
+        # Get BM25 results
+        bm25_results = self._bm25_search(query, expanded_limit)
+        
+        # Get semantic search results
+        semantic_results = self.semantic_search.search_chunks(query, expanded_limit)
+        
+        # Create dictionaries for easy lookup
+        bm25_dict = {doc_id: score for doc_id, score in bm25_results}
+        semantic_dict = {result["id"]: result["score"] for result in semantic_results}
+        
+        # Get all unique document IDs from both searches
+        all_doc_ids = set(bm25_dict.keys()) | set(semantic_dict.keys())
+        
+        # Extract scores for normalization
+        bm25_scores = [bm25_dict.get(doc_id, 0.0) for doc_id in all_doc_ids]
+        semantic_scores = [semantic_dict.get(doc_id, 0.0) for doc_id in all_doc_ids]
+        
+        # Normalize scores
+        normalized_bm25 = self.normalize(bm25_scores)
+        normalized_semantic = self.normalize(semantic_scores)
+        
+        # Create a mapping of doc_id to normalized scores
+        doc_scores = {}
+        for i, doc_id in enumerate(all_doc_ids):
+            bm25_norm = normalized_bm25[i]
+            semantic_norm = normalized_semantic[i]
+            hybrid_score = alpha * bm25_norm + (1 - alpha) * semantic_norm
+            
+            doc_scores[doc_id] = {
+                "bm25": bm25_norm,
+                "semantic": semantic_norm,
+                "hybrid": hybrid_score
+            }
+        
+        # Sort by hybrid score descending
+        sorted_results = sorted(doc_scores.items(), key=lambda x: x[1]["hybrid"], reverse=True)
+        
+        # Return top 'limit' results as list of (doc_id, scores_dict) tuples
+        return sorted_results[:limit]
 
     def rrf_search(self, query, k, limit=10):
         raise NotImplementedError("RRF hybrid search is not implemented yet.")
@@ -141,16 +217,28 @@ def main() -> None:
             # Perform weighted search
             results = hs.weighted_search(args.query, args.alpha, args.limit)
             
-            # Print results
+            # Print results with detailed score breakdown
             if not results:
                 print("No results found.")
             else:
-                for rank, (doc_id, score) in enumerate(results, start=1):
+                print(f"Top {len(results)} results for query: '{args.query}' (alpha={args.alpha}):\n")
+                
+                for rank, (doc_id, scores) in enumerate(results, start=1):
                     # Find document by id
                     doc = next((d for d in docs if d.get("id") == doc_id), None)
                     if doc:
                         title = doc.get("title", "<untitled>")
-                        print(f"{rank}. [{doc_id}] {title} (score: {score:.4f})")
+                        description = doc.get("description", "")
+                        
+                        # Truncate description to ~100 characters
+                        if len(description) > 100:
+                            description = description[:97] + "..."
+                        
+                        # Print formatted output
+                        print(f"{rank}. {title}")
+                        print(f"   Hybrid Score: {scores['hybrid']:.3f}")
+                        print(f"   BM25: {scores['bm25']:.3f}, Semantic: {scores['semantic']:.3f}")
+                        print(f"   {description}\n")
         case _:
             parser.print_help()
 
