@@ -92,6 +92,12 @@ def main() -> None:
     normalize_parser = subparsers.add_parser("normalize", help="Normalize a list of scores using min-max normalization")
     normalize_parser.add_argument("scores", nargs="*", type=float, help="List of scores to normalize")
 
+    # weighted-search command: perform weighted hybrid search
+    weighted_search_parser = subparsers.add_parser("weighted-search", help="Perform weighted hybrid search combining BM25 and semantic search")
+    weighted_search_parser.add_argument("query", type=str, help="Search query")
+    weighted_search_parser.add_argument("--alpha", type=float, default=0.5, help="Weight for BM25 scores (0.0-1.0), semantic weight is (1-alpha). Default: 0.5")
+    weighted_search_parser.add_argument("--limit", type=int, default=5, help="Number of results to return. Default: 5")
+
     args = parser.parse_args()
 
     match args.command:
@@ -115,6 +121,36 @@ def main() -> None:
             # Print normalized scores with 4 decimal places
             for score in normalized:
                 print(f"* {score:.4f}")
+        case "weighted-search":
+            # Lazy import to load movies dataset
+            try:
+                from cli.lib.semantic_search import load_movies_dataset
+            except ImportError:
+                from lib.semantic_search import load_movies_dataset
+            
+            # Load documents
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
+                import sys
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+            
+            # Initialize hybrid search
+            hs = HybridSearch(docs)
+            
+            # Perform weighted search
+            results = hs.weighted_search(args.query, args.alpha, args.limit)
+            
+            # Print results
+            if not results:
+                print("No results found.")
+            else:
+                for rank, (doc_id, score) in enumerate(results, start=1):
+                    # Find document by id
+                    doc = next((d for d in docs if d.get("id") == doc_id), None)
+                    if doc:
+                        title = doc.get("title", "<untitled>")
+                        print(f"{rank}. [{doc_id}] {title} (score: {score:.4f})")
         case _:
             parser.print_help()
 
