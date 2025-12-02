@@ -86,11 +86,37 @@ class HybridSearch:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hybrid Search CLI")
-    parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # normalize command: apply min-max normalization to a list of scores
+    normalize_parser = subparsers.add_parser("normalize", help="Normalize a list of scores using min-max normalization")
+    normalize_parser.add_argument("scores", nargs="*", type=float, help="List of scores to normalize")
 
     args = parser.parse_args()
 
-    parser.print_help()
+    match args.command:
+        case "normalize":
+            scores = args.scores
+            if not scores:
+                # Don't print anything if no scores provided
+                return
+            
+            # Min-max normalization
+            min_score = min(scores)
+            max_score = max(scores)
+            
+            if min_score == max_score:
+                # All scores are the same, normalize to 1.0
+                normalized = [1.0] * len(scores)
+            else:
+                # Apply min-max normalization: (x - min) / (max - min)
+                normalized = [(score - min_score) / (max_score - min_score) for score in scores]
+            
+            # Print normalized scores with 4 decimal places
+            for score in normalized:
+                print(f"* {score:.4f}")
+        case _:
+            parser.print_help()
 
 
 if __name__ == "__main__":
