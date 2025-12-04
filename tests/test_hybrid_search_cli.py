@@ -451,3 +451,23 @@ class TestWeightedSearchCommand:
         # Should still complete successfully
         assert len(results) <= 1000
         assert len(results) > 0
+
+    def test_weighted_search_limit_validation_zero(self):
+        """Test that zero limit is rejected."""
+        stdout, stderr, code = run_weighted_search("test", alpha=0.5, limit=0)
+        assert code == 1  # Should exit with error code
+        assert "limit must be a positive integer" in stderr
+        assert "0" in stderr
+
+    def test_weighted_search_limit_validation_negative(self):
+        """Test that negative limit values are rejected."""
+        stdout, stderr, code = run_weighted_search("test", alpha=0.5, limit=-5)
+        assert code == 1  # Should exit with error code
+        assert "limit must be a positive integer" in stderr
+        assert "-5" in stderr
+
+    def test_weighted_search_limit_validation_large_negative(self):
+        """Test that large negative limit values are rejected."""
+        stdout, stderr, code = run_weighted_search("test", alpha=0.5, limit=-1000)
+        assert code == 1
+        assert "limit must be a positive integer" in stderr
