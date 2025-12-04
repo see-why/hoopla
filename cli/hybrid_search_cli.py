@@ -198,6 +198,12 @@ def main() -> None:
             for score in normalized:
                 print(f"* {score:.4f}")
         case "weighted-search":
+            # Validate alpha parameter
+            if not (0.0 <= args.alpha <= 1.0):
+                import sys
+                print(f"Error: alpha must be between 0.0 and 1.0, got {args.alpha}", file=sys.stderr)
+                sys.exit(1)
+            
             # Lazy import to load movies dataset
             try:
                 from cli.lib.semantic_search import load_movies_dataset
