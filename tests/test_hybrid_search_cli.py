@@ -496,3 +496,55 @@ class TestWeightedSearchCommand:
                 assert abs(results_list[i][j]["hybrid_score"] - results_list[0][j]["hybrid_score"]) < 0.0001
                 assert abs(results_list[i][j]["bm25_score"] - results_list[0][j]["bm25_score"]) < 0.0001
                 assert abs(results_list[i][j]["semantic_score"] - results_list[0][j]["semantic_score"]) < 0.0001
+
+
+class TestWeightedSearchMethodValidation:
+    """Tests for method-level validation in HybridSearch.weighted_search()"""
+
+    def test_method_alpha_validation_negative(self):
+        """Test that the weighted_search method rejects negative alpha values."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        import pytest
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should raise ValueError for negative alpha
+        with pytest.raises(ValueError, match="alpha must be between 0.0 and 1.0"):
+            hs.weighted_search("test", alpha=-0.5, limit=5)
+
+    def test_method_alpha_validation_too_high(self):
+        """Test that the weighted_search method rejects alpha values > 1.0."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        import pytest
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should raise ValueError for alpha > 1.0
+        with pytest.raises(ValueError, match="alpha must be between 0.0 and 1.0"):
+            hs.weighted_search("test", alpha=1.5, limit=5)
+
+    def test_method_alpha_validation_boundaries(self):
+        """Test that the weighted_search method accepts boundary values 0.0 and 1.0."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should accept alpha = 0.0
+        results1 = hs.weighted_search("test", alpha=0.0, limit=2)
+        assert len(results1) <= 2
+        
+        # Should accept alpha = 1.0
+        results2 = hs.weighted_search("test", alpha=1.0, limit=2)
+        assert len(results2) <= 2
