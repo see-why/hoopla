@@ -402,3 +402,29 @@ class TestWeightedSearchCommand:
         results2 = parse_weighted_search_results(stdout2)
         assert len(results1) <= 2
         assert len(results2) <= 2
+
+    def test_weighted_search_alpha_validation_negative(self):
+        """Test that negative alpha values are rejected."""
+        stdout, stderr, code = run_weighted_search("test", alpha=-0.5, limit=2)
+        assert code == 1  # Should exit with error code
+        assert "alpha must be between 0.0 and 1.0" in stderr
+        assert "-0.5" in stderr
+
+    def test_weighted_search_alpha_validation_too_high(self):
+        """Test that alpha values > 1.0 are rejected."""
+        stdout, stderr, code = run_weighted_search("test", alpha=1.5, limit=2)
+        assert code == 1  # Should exit with error code
+        assert "alpha must be between 0.0 and 1.0" in stderr
+        assert "1.5" in stderr
+
+    def test_weighted_search_alpha_validation_way_out_of_range(self):
+        """Test that wildly out-of-range alpha values are rejected."""
+        # Test very large value
+        stdout1, stderr1, code1 = run_weighted_search("test", alpha=100.0, limit=2)
+        assert code1 == 1
+        assert "alpha must be between 0.0 and 1.0" in stderr1
+        
+        # Test very negative value
+        stdout2, stderr2, code2 = run_weighted_search("test", alpha=-50.0, limit=2)
+        assert code2 == 1
+        assert "alpha must be between 0.0 and 1.0" in stderr2
