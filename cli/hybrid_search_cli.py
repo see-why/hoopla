@@ -124,7 +124,14 @@ class HybridSearch:
         Returns:
             list of tuple: A list of (doc_id, scores_dict) tuples sorted by hybrid score descending,
                 where scores_dict contains 'bm25', 'semantic', and 'hybrid' normalized scores.
+        
+        Raises:
+            ValueError: If alpha is not between 0.0 and 1.0 (inclusive).
         """
+        # Validate alpha parameter
+        if not 0.0 <= alpha <= 1.0:
+            raise ValueError(f"alpha must be between 0.0 and 1.0 (inclusive), got {alpha}")
+        
         # Expand the limit to fetch more candidates for better hybrid ranking.
         # We fetch many more results than needed because:
         # 1. Documents ranking high in one method may rank low in the other
