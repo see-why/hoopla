@@ -471,3 +471,28 @@ class TestWeightedSearchCommand:
         stdout, stderr, code = run_weighted_search("test", alpha=0.5, limit=-1000)
         assert code == 1
         assert "limit must be a positive integer" in stderr
+
+    def test_weighted_search_deterministic_results(self):
+        """Test that weighted search returns consistent results across multiple runs."""
+        query = "space adventure"
+        alpha = 0.5
+        limit = 10
+        
+        # Run the search multiple times
+        results_list = []
+        for _ in range(3):
+            stdout, stderr, code = run_weighted_search(query, alpha=alpha, limit=limit)
+            assert code == 0
+            results = parse_weighted_search_results(stdout)
+            results_list.append(results)
+        
+        # All runs should produce identical results (same titles in same order)
+        for i in range(1, len(results_list)):
+            assert len(results_list[i]) == len(results_list[0])
+            for j in range(len(results_list[0])):
+                assert results_list[i][j]["title"] == results_list[0][j]["title"]
+                assert results_list[i][j]["rank"] == results_list[0][j]["rank"]
+                # Scores should also be identical
+                assert abs(results_list[i][j]["hybrid_score"] - results_list[0][j]["hybrid_score"]) < 0.0001
+                assert abs(results_list[i][j]["bm25_score"] - results_list[0][j]["bm25_score"]) < 0.0001
+                assert abs(results_list[i][j]["semantic_score"] - results_list[0][j]["semantic_score"]) < 0.0001
