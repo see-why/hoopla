@@ -144,7 +144,8 @@ class HybridSearch:
         semantic_dict = {result["id"]: result["score"] for result in semantic_results}
         
         # Get all unique document IDs from both searches
-        all_doc_ids = set(bm25_dict.keys()) | set(semantic_dict.keys())
+        # Sort to ensure deterministic ordering for consistent results across runs
+        all_doc_ids = sorted(set(bm25_dict.keys()) | set(semantic_dict.keys()))
         
         # Extract scores for normalization
         bm25_scores = [bm25_dict.get(doc_id, 0.0) for doc_id in all_doc_ids]
