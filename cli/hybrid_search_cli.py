@@ -122,7 +122,8 @@ class HybridSearch:
             limit (int): The maximum number of results to return.
 
         Returns:
-            list of tuple: A list of (doc_id, hybrid_score) tuples sorted by hybrid score descending.
+            list of tuple: A list of (doc_id, scores_dict) tuples sorted by hybrid score descending,
+                where scores_dict contains 'bm25', 'semantic', and 'hybrid' normalized scores.
         """
         # Expand the limit to fetch more candidates for better hybrid ranking.
         # We fetch many more results than needed because:
