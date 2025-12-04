@@ -428,3 +428,26 @@ class TestWeightedSearchCommand:
         stdout2, stderr2, code2 = run_weighted_search("test", alpha=-50.0, limit=2)
         assert code2 == 1
         assert "alpha must be between 0.0 and 1.0" in stderr2
+
+    def test_weighted_search_large_limit(self):
+        """Test weighted search with large limit values."""
+        # This should work without performance issues due to MAX_EXPANDED_LIMIT cap
+        stdout, stderr, code = run_weighted_search("action", alpha=0.5, limit=100)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        # Should return up to 100 results (or fewer if less are available)
+        assert len(results) <= 100
+        assert len(results) > 0
+
+    def test_weighted_search_very_large_limit(self):
+        """Test weighted search with very large limit to verify capping behavior."""
+        # With limit=1000, expanded would be 500,000 without cap
+        # But MAX_EXPANDED_LIMIT should cap it to 10,000
+        stdout, stderr, code = run_weighted_search("movie", alpha=0.5, limit=1000)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        # Should still complete successfully
+        assert len(results) <= 1000
+        assert len(results) > 0
