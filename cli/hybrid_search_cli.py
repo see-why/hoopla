@@ -11,6 +11,17 @@ except ImportError:
     from lib.semantic_search import ChunkedSemanticSearch
 
 
+# Constants for hybrid search configuration
+# EXPANSION_FACTOR: Multiplier for initial search limit to ensure sufficient candidate documents
+# for hybrid ranking. A larger factor ensures more documents are considered from both search methods
+# before normalization and weighted combination, improving result quality at the cost of performance.
+EXPANSION_FACTOR = 500
+
+# MAX_EXPANDED_LIMIT: Maximum number of results to fetch from each search method, regardless of
+# requested limit. This prevents excessive memory usage and processing time for large limit values.
+MAX_EXPANDED_LIMIT = 10000
+
+
 class HybridSearch:
     """
     HybridSearch provides a unified interface for performing hybrid search over a collection of documents,
@@ -113,8 +124,13 @@ class HybridSearch:
         Returns:
             list of tuple: A list of (doc_id, hybrid_score) tuples sorted by hybrid score descending.
         """
-        # Get results from both search methods (500x limit to ensure enough results)
-        expanded_limit = limit * 500
+        # Expand the limit to fetch more candidates for better hybrid ranking.
+        # We fetch many more results than needed because:
+        # 1. Documents ranking high in one method may rank low in the other
+        # 2. Normalization and weighted combination may reorder results significantly
+        # 3. We need sufficient overlap between both methods for meaningful hybrid scores
+        # Cap at MAX_EXPANDED_LIMIT to prevent excessive memory/processing for large limits.
+        expanded_limit = min(limit * EXPANSION_FACTOR, MAX_EXPANDED_LIMIT)
         
         # Get BM25 results
         bm25_results = self._bm25_search(query, expanded_limit)
