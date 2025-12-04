@@ -137,3 +137,268 @@ class TestNormalizeCommand:
         assert abs(scores[0] - 0.0) < 0.0001
         assert abs(scores[1] - 0.5) < 0.0001
         assert abs(scores[2] - 1.0) < 0.0001
+
+
+def run_weighted_search(query, alpha=None, limit=None):
+    """Helper to run the weighted-search command."""
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    python_exec = str(venv_python) if venv_python.exists() else "python3"
+    
+    cmd = [python_exec, "cli/hybrid_search_cli.py", "weighted-search", query]
+    if alpha is not None:
+        cmd.extend(["--alpha", str(alpha)])
+    if limit is not None:
+        cmd.extend(["--limit", str(limit)])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
+    return result.stdout, result.stderr, result.returncode
+
+
+def parse_weighted_search_results(output):
+    """Parse weighted search results from output.
+    
+    Returns a list of dicts with keys: rank, title, hybrid_score, bm25_score, semantic_score, description
+    """
+    results = []
+    lines = output.strip().split("\n")
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Look for rank line (e.g., "1. Paddington")
+        if line and line[0].isdigit() and ". " in line:
+            rank_str, title = line.split(". ", 1)
+            rank = int(rank_str)
+            
+            # Next line should be hybrid score
+            i += 1
+            if i < len(lines) and "Hybrid Score:" in lines[i]:
+                hybrid_score = float(lines[i].split("Hybrid Score:")[1].strip())
+                
+                # Next line should be BM25 and Semantic scores
+                i += 1
+                if i < len(lines) and "BM25:" in lines[i] and "Semantic:" in lines[i]:
+                    parts = lines[i].strip().split(",")
+                    bm25_score = float(parts[0].split("BM25:")[1].strip())
+                    semantic_score = float(parts[1].split("Semantic:")[1].strip())
+                    
+                    # Next line should be description
+                    i += 1
+                    description = lines[i].strip() if i < len(lines) else ""
+                    
+                    results.append({
+                        "rank": rank,
+                        "title": title,
+                        "hybrid_score": hybrid_score,
+                        "bm25_score": bm25_score,
+                        "semantic_score": semantic_score,
+                        "description": description
+                    })
+        
+        i += 1
+    
+    return results
+
+
+class TestWeightedSearchCommand:
+    """Tests for the weighted-search command in hybrid_search_cli.py"""
+
+    def test_weighted_search_alpha_0_5_default(self):
+        """Test weighted search with default alpha (0.5) - balanced hybrid."""
+        stdout, stderr, code = run_weighted_search("bear paddington", limit=5)
+        assert code == 0
+        assert "Top 5 results" in stdout
+        assert "alpha=0.5" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 5
+        
+        # Verify all results have valid scores
+        for result in results:
+            assert 0.0 <= result["hybrid_score"] <= 1.0
+            assert 0.0 <= result["bm25_score"] <= 1.0
+            assert 0.0 <= result["semantic_score"] <= 1.0
+            assert result["title"]
+            assert result["description"]
+        
+        # Results should be ordered by hybrid score descending
+        for i in range(len(results) - 1):
+            assert results[i]["hybrid_score"] >= results[i + 1]["hybrid_score"]
+
+    def test_weighted_search_alpha_0_0_semantic_only(self):
+        """Test weighted search with alpha=0.0 (100% semantic search)."""
+        stdout, stderr, code = run_weighted_search("bear paddington", alpha=0.0, limit=3)
+        assert code == 0
+        assert "alpha=0.0" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 3
+        
+        # With alpha=0, hybrid score should equal semantic score
+        for result in results:
+            # Allow small floating point difference
+            assert abs(result["hybrid_score"] - result["semantic_score"]) < 0.001
+
+    def test_weighted_search_alpha_1_0_bm25_only(self):
+        """Test weighted search with alpha=1.0 (100% BM25 keyword search)."""
+        stdout, stderr, code = run_weighted_search("bear paddington", alpha=1.0, limit=3)
+        assert code == 0
+        assert "alpha=1.0" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 3
+        
+        # With alpha=1, hybrid score should equal BM25 score
+        for result in results:
+            # Allow small floating point difference
+            assert abs(result["hybrid_score"] - result["bm25_score"]) < 0.001
+
+    def test_weighted_search_alpha_0_2_favor_semantic(self):
+        """Test weighted search with alpha=0.2 (favor semantic search)."""
+        stdout, stderr, code = run_weighted_search("bear paddington", alpha=0.2, limit=5)
+        assert code == 0
+        assert "alpha=0.2" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 5
+        
+        # Verify hybrid score calculation: hybrid = 0.2 * bm25 + 0.8 * semantic
+        for result in results:
+            expected = 0.2 * result["bm25_score"] + 0.8 * result["semantic_score"]
+            assert abs(result["hybrid_score"] - expected) < 0.001
+
+    def test_weighted_search_alpha_0_8_favor_bm25(self):
+        """Test weighted search with alpha=0.8 (favor BM25 keyword search)."""
+        stdout, stderr, code = run_weighted_search("bear paddington", alpha=0.8, limit=5)
+        assert code == 0
+        assert "alpha=0.8" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 5
+        
+        # Verify hybrid score calculation: hybrid = 0.8 * bm25 + 0.2 * semantic
+        for result in results:
+            expected = 0.8 * result["bm25_score"] + 0.2 * result["semantic_score"]
+            assert abs(result["hybrid_score"] - expected) < 0.001
+
+    def test_weighted_search_different_limits(self):
+        """Test weighted search respects different limit values."""
+        for limit in [1, 3, 10]:
+            stdout, stderr, code = run_weighted_search("space adventure", limit=limit)
+            assert code == 0
+            
+            results = parse_weighted_search_results(stdout)
+            assert len(results) == limit
+            assert f"Top {limit} results" in stdout
+
+    def test_weighted_search_output_format(self):
+        """Test that output format is correct."""
+        stdout, stderr, code = run_weighted_search("british bear", alpha=0.5, limit=3)
+        assert code == 0
+        
+        # Check header format
+        assert "Top 3 results for query: 'british bear'" in stdout
+        assert "alpha=0.5" in stdout
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 3
+        
+        # Check that each result has all required fields
+        for result in results:
+            assert result["rank"] > 0
+            assert result["title"] != ""
+            assert result["hybrid_score"] >= 0.0
+            assert result["bm25_score"] >= 0.0
+            assert result["semantic_score"] >= 0.0
+            # Description should be truncated (approximately 100 chars or less including "...")
+            if len(result["description"]) > 3:
+                assert len(result["description"]) <= 105  # Allow some tolerance
+
+    def test_weighted_search_score_normalization(self):
+        """Test that scores are properly normalized to 0-1 range."""
+        stdout, stderr, code = run_weighted_search("action movie", alpha=0.5, limit=10)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 10
+        
+        # All scores should be in [0, 1] range
+        for result in results:
+            assert 0.0 <= result["hybrid_score"] <= 1.0
+            assert 0.0 <= result["bm25_score"] <= 1.0
+            assert 0.0 <= result["semantic_score"] <= 1.0
+        
+        # At least one result should have a normalized score near 1.0 (top result)
+        max_hybrid = max(r["hybrid_score"] for r in results)
+        assert max_hybrid >= 0.9  # Top score should be close to 1.0
+
+    def test_weighted_search_result_ordering(self):
+        """Test that results are correctly ordered by hybrid score."""
+        stdout, stderr, code = run_weighted_search("comedy film", alpha=0.5, limit=15)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 15
+        
+        # Verify strict descending order
+        hybrid_scores = [r["hybrid_score"] for r in results]
+        assert hybrid_scores == sorted(hybrid_scores, reverse=True)
+        
+        # Verify ranks are sequential
+        for i, result in enumerate(results):
+            assert result["rank"] == i + 1
+
+    def test_weighted_search_specific_movies(self):
+        """Test that specific expected movies appear in results."""
+        stdout, stderr, code = run_weighted_search("British Bear", alpha=0.8, limit=25)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        titles = [r["title"] for r in results]
+        
+        # These movies should appear based on the query
+        assert "Paddington" in titles
+        assert "The Duchess" in titles
+        assert "The Great Bear" in titles
+
+    def test_weighted_search_empty_query(self):
+        """Test weighted search with empty or very short query."""
+        # Python argparse requires at least the query argument, so empty string should work
+        stdout, stderr, code = run_weighted_search("", limit=5)
+        # Should either return results or handle gracefully
+        # The actual behavior depends on implementation, but shouldn't crash
+        assert code == 0 or "error" in stderr.lower()
+
+    def test_weighted_search_unusual_query(self):
+        """Test weighted search with unusual query characters."""
+        stdout, stderr, code = run_weighted_search("@#$%", limit=3)
+        # Should handle gracefully, either returning results or empty
+        assert code == 0
+        # May have no results for special characters
+        assert "No results found" in stdout or "Top" in stdout
+
+    def test_weighted_search_long_query(self):
+        """Test weighted search with a very long query."""
+        long_query = "adventure action thriller suspense drama comedy romance sci-fi fantasy"
+        stdout, stderr, code = run_weighted_search(long_query, alpha=0.5, limit=5)
+        assert code == 0
+        
+        results = parse_weighted_search_results(stdout)
+        assert len(results) == 5
+
+    def test_weighted_search_alpha_boundaries(self):
+        """Test weighted search with alpha at exact boundaries."""
+        # Test alpha = 0.0
+        stdout1, stderr1, code1 = run_weighted_search("test", alpha=0.0, limit=2)
+        assert code1 == 0
+        
+        # Test alpha = 1.0
+        stdout2, stderr2, code2 = run_weighted_search("test", alpha=1.0, limit=2)
+        assert code2 == 0
+        
+        # Both should return valid results
+        results1 = parse_weighted_search_results(stdout1)
+        results2 = parse_weighted_search_results(stdout2)
+        assert len(results1) <= 2
+        assert len(results2) <= 2
