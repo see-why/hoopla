@@ -181,8 +181,64 @@ class HybridSearch:
         # Return top 'limit' results as list of (doc_id, scores_dict) tuples
         return sorted_results[:limit]
 
-    def rrf_search(self, query, k, limit=10):
-        raise NotImplementedError("RRF hybrid search is not implemented yet.")
+    def rrf_search(self, query, k=60, limit=10):
+        """
+        Perform hybrid search using Reciprocal Rank Fusion (RRF).
+        
+        RRF combines rankings from multiple search methods by summing reciprocal ranks,
+        providing a rank-based fusion that doesn't require score normalization.
+        
+        Args:
+            query (str): The search query string.
+            k (int): RRF constant parameter (default 60). Higher values give less weight to top-ranked items.
+            limit (int): The maximum number of results to return.
+        
+        Returns:
+            list of tuple: A list of (doc_id, scores_dict) tuples sorted by RRF score descending,
+                where scores_dict contains 'rrf', 'bm25_rank', and 'semantic_rank'.
+        """
+        # Expand the limit to get more candidates
+        expanded_limit = min(limit * EXPANSION_FACTOR, MAX_EXPANDED_LIMIT)
+        
+        # Get BM25 results (returns list of (doc_id, score) tuples)
+        bm25_results = self._bm25_search(query, expanded_limit)
+        
+        # Get semantic search results (returns list of dicts with 'id' and 'score')
+        semantic_results = self.semantic_search.search_chunks(query, expanded_limit)
+        
+        # Create rank mappings (1-indexed)
+        bm25_ranks = {doc_id: rank + 1 for rank, (doc_id, _) in enumerate(bm25_results)}
+        semantic_ranks = {result["id"]: rank + 1 for rank, result in enumerate(semantic_results)}
+        
+        # Get all unique document IDs and sort for deterministic ordering
+        all_doc_ids = sorted(set(bm25_ranks.keys()) | set(semantic_ranks.keys()))
+        
+        # Calculate RRF scores for each document
+        doc_scores = {}
+        for doc_id in all_doc_ids:
+            rrf_score = 0.0
+            bm25_rank = bm25_ranks.get(doc_id)
+            semantic_rank = semantic_ranks.get(doc_id)
+            
+            # Add RRF contribution from BM25 if document appears in BM25 results
+            if bm25_rank is not None:
+                rrf_score += 1.0 / (k + bm25_rank)
+            
+            # Add RRF contribution from semantic search if document appears in semantic results
+            if semantic_rank is not None:
+                rrf_score += 1.0 / (k + semantic_rank)
+            
+            doc_scores[doc_id] = {
+                "rrf": rrf_score,
+                "bm25_rank": bm25_rank,
+                "semantic_rank": semantic_rank
+            }
+        
+        # Sort by RRF score descending
+        sorted_results = sorted(doc_scores.items(), key=lambda x: x[1]["rrf"], reverse=True)
+        
+        # Return top 'limit' results
+        return sorted_results[:limit]
 
 
 def main() -> None:
@@ -198,6 +254,12 @@ def main() -> None:
     weighted_search_parser.add_argument("query", type=str, help="Search query")
     weighted_search_parser.add_argument("--alpha", type=float, default=0.5, help="Weight for BM25 scores (0.0-1.0), semantic weight is (1-alpha). Default: 0.5")
     weighted_search_parser.add_argument("--limit", type=int, default=5, help="Number of results to return. Default: 5")
+
+    # rrf-search command: perform RRF (Reciprocal Rank Fusion) hybrid search
+    rrf_search_parser = subparsers.add_parser("rrf-search", help="Perform hybrid search using Reciprocal Rank Fusion (RRF)")
+    rrf_search_parser.add_argument("query", type=str, help="Search query")
+    rrf_search_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
+    rrf_search_parser.add_argument("--limit", type=int, default=5, help="Number of results to return. Default: 5")
 
     args = parser.parse_args()
 
@@ -275,6 +337,60 @@ def main() -> None:
                         print(f"{rank}. {title}")
                         print(f"   Hybrid Score: {scores['hybrid']:.3f}")
                         print(f"   BM25: {scores['bm25']:.3f}, Semantic: {scores['semantic']:.3f}")
+                        print(f"   {description}\n")
+        case "rrf-search":
+            # Validate k parameter
+            if args.k <= 0:
+                import sys
+                print(f"Error: k must be a positive integer, got {args.k}", file=sys.stderr)
+                sys.exit(1)
+            
+            # Validate limit parameter
+            if args.limit <= 0:
+                import sys
+                print(f"Error: limit must be a positive integer, got {args.limit}", file=sys.stderr)
+                sys.exit(1)
+            
+            # Lazy import to load movies dataset
+            try:
+                from cli.lib.semantic_search import load_movies_dataset
+            except ImportError:
+                from lib.semantic_search import load_movies_dataset
+            
+            # Load documents
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
+                import sys
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+            
+            # Initialize hybrid search
+            hs = HybridSearch(docs)
+            
+            # Perform RRF search
+            results = hs.rrf_search(args.query, args.k, args.limit)
+            
+            # Print results with rank information
+            if not results:
+                print("No results found.")
+            else:
+                print(f"Top {len(results)} results for query: '{args.query}' (k={args.k}):\n")
+                
+                for rank, (doc_id, scores) in enumerate(results, start=1):
+                    # Find document by id
+                    doc = next((d for d in docs if d.get("id") == doc_id), None)
+                    if doc:
+                        title = doc.get("title", "<untitled>")
+                        description = doc.get("description", "")
+                        
+                        # Truncate description to ~100 characters
+                        if len(description) > 100:
+                            description = description[:97] + "..."
+                        
+                        # Print formatted output
+                        print(f"{rank}. {title}")
+                        print(f"   RRF Score: {scores['rrf']:.3f}")
+                        print(f"   BM25 Rank: {scores['bm25_rank']}, Semantic Rank: {scores['semantic_rank']}")
                         print(f"   {description}\n")
         case _:
             parser.print_help()
