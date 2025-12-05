@@ -196,7 +196,16 @@ class HybridSearch:
         Returns:
             list of tuple: A list of (doc_id, scores_dict) tuples sorted by RRF score descending,
                 where scores_dict contains 'rrf', 'bm25_rank', and 'semantic_rank'.
+        
+        Raises:
+            ValueError: If k or limit is not a positive integer.
         """
+        # Validate parameters
+        if k <= 0:
+            raise ValueError(f"k must be a positive integer, got {k}")
+        if limit <= 0:
+            raise ValueError(f"limit must be a positive integer, got {limit}")
+        
         # Expand the limit to get more candidates
         expanded_limit = min(limit * EXPANSION_FACTOR, MAX_EXPANDED_LIMIT)
         
