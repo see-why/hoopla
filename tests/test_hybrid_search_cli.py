@@ -949,3 +949,326 @@ class TestRRFSearchMethodValidation:
         # Should not raise for positive k values
         results = hs.rrf_search("test", k=100, limit=5)
         assert len(results) <= 5
+
+
+class TestRRFSearchMethod:
+    """Tests for the rrf_search method implementation."""
+
+    def test_rrf_search_basic_functionality(self):
+        """Test basic RRF search returns results in correct format."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("magical bear", k=60, limit=5)
+        
+        # Should return results
+        assert len(results) > 0
+        assert len(results) <= 5
+        
+        # Check result format: list of (doc_id, scores_dict) tuples
+        for doc_id, scores in results:
+            assert isinstance(doc_id, str)
+            assert isinstance(scores, dict)
+            assert "rrf" in scores
+            assert "bm25_rank" in scores
+            assert "semantic_rank" in scores
+            assert isinstance(scores["rrf"], float)
+            assert scores["rrf"] > 0.0
+
+    def test_rrf_search_different_k_values(self):
+        """Test that different k values affect RRF scores."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Get results with different k values
+        results_k30 = hs.rrf_search("bear", k=30, limit=5)
+        results_k60 = hs.rrf_search("bear", k=60, limit=5)
+        results_k100 = hs.rrf_search("bear", k=100, limit=5)
+        
+        # All should return results
+        assert len(results_k30) > 0
+        assert len(results_k60) > 0
+        assert len(results_k100) > 0
+        
+        # Lower k values should produce higher RRF scores (since 1/(k+rank) is larger)
+        # Check first result's RRF score
+        score_k30 = results_k30[0][1]["rrf"]
+        score_k60 = results_k60[0][1]["rrf"]
+        score_k100 = results_k100[0][1]["rrf"]
+        
+        assert score_k30 > score_k60
+        assert score_k60 > score_k100
+
+    def test_rrf_search_result_ordering(self):
+        """Test that results are ordered by RRF score descending."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("adventure", k=60, limit=10)
+        
+        assert len(results) > 1
+        
+        # Check that RRF scores are in descending order
+        rrf_scores = [scores["rrf"] for _, scores in results]
+        assert rrf_scores == sorted(rrf_scores, reverse=True)
+
+    def test_rrf_search_score_calculation(self):
+        """Test that RRF scores are calculated correctly."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        k = 60
+        results = hs.rrf_search("paddington", k=k, limit=3)
+        
+        assert len(results) > 0
+        
+        # For each result, verify RRF score calculation
+        for doc_id, scores in results:
+            rrf_score = scores["rrf"]
+            bm25_rank = scores["bm25_rank"]
+            semantic_rank = scores["semantic_rank"]
+            
+            # Calculate expected RRF score
+            expected_rrf = 0.0
+            if bm25_rank is not None:
+                expected_rrf += 1.0 / (k + bm25_rank)
+            if semantic_rank is not None:
+                expected_rrf += 1.0 / (k + semantic_rank)
+            
+            # Should match within floating point tolerance
+            assert abs(rrf_score - expected_rrf) < 0.0001
+
+    def test_rrf_search_rank_information(self):
+        """Test that rank information is correctly included in results."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("bear", k=60, limit=5)
+        
+        assert len(results) > 0
+        
+        # Check that ranks are positive integers or None
+        for doc_id, scores in results:
+            bm25_rank = scores["bm25_rank"]
+            semantic_rank = scores["semantic_rank"]
+            
+            # At least one rank should be present for each result
+            assert bm25_rank is not None or semantic_rank is not None
+            
+            # If present, ranks should be positive integers
+            if bm25_rank is not None:
+                assert isinstance(bm25_rank, int)
+                assert bm25_rank > 0
+            if semantic_rank is not None:
+                assert isinstance(semantic_rank, int)
+                assert semantic_rank > 0
+
+    def test_rrf_search_deterministic_results(self):
+        """Test that RRF search produces deterministic results."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Run the same search multiple times
+        results1 = hs.rrf_search("fantasy adventure", k=60, limit=5)
+        results2 = hs.rrf_search("fantasy adventure", k=60, limit=5)
+        results3 = hs.rrf_search("fantasy adventure", k=60, limit=5)
+        
+        # All runs should produce identical results
+        assert len(results1) == len(results2) == len(results3)
+        
+        for (doc_id1, scores1), (doc_id2, scores2), (doc_id3, scores3) in zip(results1, results2, results3):
+            assert doc_id1 == doc_id2 == doc_id3
+            assert abs(scores1["rrf"] - scores2["rrf"]) < 0.0001
+            assert abs(scores1["rrf"] - scores3["rrf"]) < 0.0001
+
+    def test_rrf_search_empty_query(self):
+        """Test RRF search with empty query."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("", k=60, limit=5)
+        
+        # Should still return results (may be arbitrary based on search implementation)
+        assert isinstance(results, list)
+
+    def test_rrf_search_rare_query(self):
+        """Test RRF search with a query that yields few results."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        # Use a very specific query that should match few documents
+        results = hs.rrf_search("xyzabc123nonexistent", k=60, limit=5)
+        
+        # Should return a list (may be empty or have few results)
+        assert isinstance(results, list)
+        
+        # All results should have valid format
+        for doc_id, scores in results:
+            assert "rrf" in scores
+            assert "bm25_rank" in scores
+            assert "semantic_rank" in scores
+
+    def test_rrf_search_limit_behavior(self):
+        """Test that limit parameter correctly restricts results."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Test various limits
+        results_3 = hs.rrf_search("adventure", k=60, limit=3)
+        results_5 = hs.rrf_search("adventure", k=60, limit=5)
+        results_10 = hs.rrf_search("adventure", k=60, limit=10)
+        
+        assert len(results_3) <= 3
+        assert len(results_5) <= 5
+        assert len(results_10) <= 10
+        
+        # Smaller limits should be subsets of larger limits (same top results)
+        if len(results_3) >= 3 and len(results_5) >= 5:
+            # First 3 results should match
+            for i in range(3):
+                assert results_3[i][0] == results_5[i][0]
+
+    def test_rrf_search_both_searches_contribute(self):
+        """Test that both BM25 and semantic search contribute to results."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("magical bear adventure", k=60, limit=10)
+        
+        assert len(results) > 0
+        
+        # Check that we have results with different rank patterns
+        # Some documents should appear in both searches
+        both_searches = []
+        only_bm25 = []
+        only_semantic = []
+        
+        for doc_id, scores in results:
+            if scores["bm25_rank"] is not None and scores["semantic_rank"] is not None:
+                both_searches.append(doc_id)
+            elif scores["bm25_rank"] is not None:
+                only_bm25.append(doc_id)
+            elif scores["semantic_rank"] is not None:
+                only_semantic.append(doc_id)
+        
+        # Should have at least some documents in both searches
+        # (This is query-dependent but likely for this query)
+        assert len(both_searches) > 0
+
+    def test_rrf_search_large_k_value(self):
+        """Test RRF search with large k value."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("bear", k=1000, limit=5)
+        
+        assert len(results) > 0
+        
+        # With large k, RRF scores should be smaller
+        for doc_id, scores in results:
+            assert scores["rrf"] > 0.0
+            assert scores["rrf"] < 0.1  # Should be quite small with k=1000
+
+    def test_rrf_search_small_k_value(self):
+        """Test RRF search with small k value."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("bear", k=1, limit=5)
+        
+        assert len(results) > 0
+        
+        # With small k, RRF scores should be larger
+        for doc_id, scores in results:
+            assert scores["rrf"] > 0.0
+
+    def test_rrf_search_expansion_factor(self):
+        """Test that expansion factor allows better fusion."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Even with small limit, should get good results due to expansion
+        results = hs.rrf_search("magical bear", k=60, limit=1)
+        
+        assert len(results) == 1
+        
+        # Should have rank information from expanded searches
+        doc_id, scores = results[0]
+        assert "bm25_rank" in scores
+        assert "semantic_rank" in scores
+
+    def test_rrf_search_returns_document_ids(self):
+        """Test that RRF search returns valid document IDs."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        results = hs.rrf_search("adventure", k=60, limit=5)
+        
+        assert len(results) > 0
+        
+        # Collect all document IDs from dataset
+        all_doc_ids = {doc.get("id") for doc in docs}
+        
+        # All returned doc IDs should be valid
+        for doc_id, scores in results:
+            assert doc_id in all_doc_ids
