@@ -905,3 +905,47 @@ class TestRRFSearchMethodValidation:
         # Should raise ValueError for limit=0
         with pytest.raises(ValueError, match="limit must be a positive integer"):
             hs.rrf_search("test", k=60, limit=0)
+
+    def test_method_k_validation_negative(self):
+        """Test that the rrf_search method rejects negative k values."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        import pytest
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should raise ValueError for negative k
+        with pytest.raises(ValueError, match="k must be a positive integer"):
+            hs.rrf_search("test", k=-10, limit=5)
+
+    def test_method_k_validation_zero(self):
+        """Test that the rrf_search method rejects k=0."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        import pytest
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should raise ValueError for k=0
+        with pytest.raises(ValueError, match="k must be a positive integer"):
+            hs.rrf_search("test", k=0, limit=5)
+
+    def test_method_k_validation_positive(self):
+        """Test that the rrf_search method accepts positive k values."""
+        from cli.lib.semantic_search import load_movies_dataset
+        from cli.hybrid_search_cli import HybridSearch
+        
+        docs, exc, _ = load_movies_dataset()
+        assert exc is None
+        
+        hs = HybridSearch(docs)
+        
+        # Should not raise for positive k values
+        results = hs.rrf_search("test", k=100, limit=5)
+        assert len(results) <= 5
