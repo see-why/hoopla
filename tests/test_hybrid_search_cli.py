@@ -971,7 +971,7 @@ class TestRRFSearchMethod:
         
         # Check result format: list of (doc_id, scores_dict) tuples
         for doc_id, scores in results:
-            assert isinstance(doc_id, str)
+            assert isinstance(doc_id, int)
             assert isinstance(scores, dict)
             assert "rrf" in scores
             assert "bm25_rank" in scores
@@ -1108,18 +1108,19 @@ class TestRRFSearchMethod:
             assert abs(scores1["rrf"] - scores3["rrf"]) < 0.0001
 
     def test_rrf_search_empty_query(self):
-        """Test RRF search with empty query."""
+        """Test RRF search with empty query raises ValueError."""
         from cli.lib.semantic_search import load_movies_dataset
         from cli.hybrid_search_cli import HybridSearch
+        import pytest
         
         docs, exc, _ = load_movies_dataset()
         assert exc is None
         
         hs = HybridSearch(docs)
-        results = hs.rrf_search("", k=60, limit=5)
         
-        # Should still return results (may be arbitrary based on search implementation)
-        assert isinstance(results, list)
+        # Empty query should raise ValueError from semantic search
+        with pytest.raises(ValueError, match="query must be a non-empty string"):
+            hs.rrf_search("", k=60, limit=5)
 
     def test_rrf_search_rare_query(self):
         """Test RRF search with a query that yields few results."""
