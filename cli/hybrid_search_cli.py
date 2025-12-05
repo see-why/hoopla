@@ -294,15 +294,15 @@ def main() -> None:
             for score in normalized:
                 print(f"* {score:.4f}")
         case "weighted-search":
+            import sys
+            
             # Validate alpha parameter
             if not (0.0 <= args.alpha <= 1.0):
-                import sys
                 print(f"Error: alpha must be between 0.0 and 1.0, got {args.alpha}", file=sys.stderr)
                 sys.exit(1)
             
             # Validate limit parameter
             if args.limit <= 0:
-                import sys
                 print(f"Error: limit must be a positive integer, got {args.limit}", file=sys.stderr)
                 sys.exit(1)
             
@@ -315,16 +315,14 @@ def main() -> None:
             # Load documents
             docs, exc, movies_path = load_movies_dataset()
             if exc:
-                import sys
                 print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
                 sys.exit(1)
             
             # Initialize hybrid search
             hs = HybridSearch(docs)
             
-            # Perform weighted search
-            results = hs.weighted_search(args.query, args.alpha, args.limit)
-            
+            # Perform RRF search
+            results = hs.rrf_search(args.query, args.k, args.limit)
             # Print results with detailed score breakdown
             if not results:
                 print("No results found.")
@@ -348,15 +346,15 @@ def main() -> None:
                         print(f"   BM25: {scores['bm25']:.3f}, Semantic: {scores['semantic']:.3f}")
                         print(f"   {description}\n")
         case "rrf-search":
+            import sys
+            
             # Validate k parameter
             if args.k <= 0:
-                import sys
                 print(f"Error: k must be a positive integer, got {args.k}", file=sys.stderr)
                 sys.exit(1)
             
             # Validate limit parameter
             if args.limit <= 0:
-                import sys
                 print(f"Error: limit must be a positive integer, got {args.limit}", file=sys.stderr)
                 sys.exit(1)
             
@@ -369,7 +367,6 @@ def main() -> None:
             # Load documents
             docs, exc, movies_path = load_movies_dataset()
             if exc:
-                import sys
                 print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
                 sys.exit(1)
             
