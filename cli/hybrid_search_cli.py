@@ -321,8 +321,9 @@ def main() -> None:
             # Initialize hybrid search
             hs = HybridSearch(docs)
             
-            # Perform RRF search
-            results = hs.rrf_search(args.query, args.k, args.limit)
+            # Perform weighted search
+            results = hs.weighted_search(args.query, args.alpha, args.limit)
+            
             # Print results with detailed score breakdown
             if not results:
                 print("No results found.")
