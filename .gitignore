@@ -18,3 +18,4 @@ cli/cache/movie_embeddings.npy
 cache/movie_embeddings.npy
 cache/chunk_metadata.json
 cache/chunk_embeddings.npy
+.env
