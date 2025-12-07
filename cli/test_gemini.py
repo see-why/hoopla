@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""
+Test script for Google Gemini API integration.
+
+This script demonstrates basic usage of the Gemini API by:
+1. Loading the API key from environment variables
+2. Creating a Gemini client
+3. Sending a test prompt to the gemini-2.0-flash-001 model
+4. Displaying the response and token usage statistics
+"""
 import os
 from dotenv import load_dotenv
 from google import genai
