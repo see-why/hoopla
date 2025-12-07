@@ -380,14 +380,51 @@ def main() -> None:
             # Initialize hybrid search
             hs = HybridSearch(docs)
             
+            # Handle query enhancement
+            query = args.query
+            if args.enhance == "spell":
+                import os
+                from dotenv import load_dotenv
+                from google import genai
+                
+                load_dotenv()
+                api_key = os.environ.get("GEMINI_API_KEY")
+                if not api_key:
+                    print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
+                    sys.exit(1)
+                
+                client = genai.Client(api_key=api_key)
+                
+                prompt = f"""Fix any spelling errors in this movie search query.
+
+Only correct obvious typos. Don't change correctly spelled words.
+
+Query: "{query}"
+
+If no errors, return the original query.
+Corrected:"""
+                
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash-001",
+                        contents=prompt
+                    )
+                    corrected_query = response.text.strip()
+                    if corrected_query != query:
+                        print(f"Spell-corrected query: '{corrected_query}'")
+                    query = corrected_query
+                except Exception as e:
+                    print(f"Warning: Spell correction failed: {e}", file=sys.stderr)
+                    print("Continuing with original query...", file=sys.stderr)
+            
             # Perform RRF search
-            results = hs.rrf_search(args.query, args.k, args.limit)
+            results = hs.rrf_search(query, args.k, args.limit)
             
             # Print results with rank information
             if not results:
                 print("No results found.")
             else:
-                print(f"Top {len(results)} results for query: '{args.query}' (k={args.k}):\n")
+                print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
                 for rank, (doc_id, scores) in enumerate(results, start=1):
                     # Find document by id
