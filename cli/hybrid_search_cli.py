@@ -410,11 +410,16 @@ Corrected:"""
                         contents=prompt
                     )
                     corrected_query = response.text.strip()
+                    
+                    # Validate the corrected query
+                    if not corrected_query or len(corrected_query) > len(query) * 3:
+                        raise ValueError("Invalid correction response")
+                    
                     if corrected_query != query:
                         print(f"Enhanced query (spell): '{query}' -> '{corrected_query}'\n")
                     query = corrected_query
                 except Exception as e:
-                    print(f"Warning: Spell correction failed british bear: {e}", file=sys.stderr)
+                    print(f"Warning: Spell correction failed: {e}", file=sys.stderr)
                     print("Continuing with original query...", file=sys.stderr)
             
             # Perform RRF search
