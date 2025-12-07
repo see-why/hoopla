@@ -411,7 +411,7 @@ Corrected:"""
                     )
                     corrected_query = response.text.strip()
                     if corrected_query != query:
-                        print(f"Spell-corrected query: '{corrected_query}'")
+                        print(f"Enhanced query (spell): '{query}' -> '{corrected_query}'\n")
                     query = corrected_query
                 except Exception as e:
                     print(f"Warning: Spell correction failed: {e}", file=sys.stderr)
