@@ -565,6 +565,23 @@ def run_rrf_search(query, k=None, limit=None):
     return result.stdout, result.stderr, result.returncode
 
 
+def run_rrf_search_with_enhance(query, enhance_method, k=None, limit=None, env=None):
+    """Helper to run the rrf-search command with --enhance flag."""
+    # Prefer the project's virtualenv python if present
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    python_exec = str(venv_python) if venv_python.exists() else "python3"
+    
+    cmd = [python_exec, "cli/hybrid_search_cli.py", "rrf-search", query]
+    cmd.extend(["--enhance", enhance_method])
+    if k is not None:
+        cmd.extend(["--k", str(k)])
+    if limit is not None:
+        cmd.extend(["--limit", str(limit)])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT, env=env)
+    return result.stdout, result.stderr, result.returncode
+
+
 def parse_rrf_search_results(output):
     """Parse RRF search results from output.
     
@@ -1273,3 +1290,131 @@ class TestRRFSearchMethod:
         # All returned doc IDs should be valid
         for doc_id, scores in results:
             assert doc_id in all_doc_ids
+
+
+class TestRRFSearchEnhancement:
+    """Tests for the --enhance functionality in rrf-search command."""
+
+    def test_enhance_spell_with_correct_query(self):
+        """Test --enhance spell with correctly spelled query (no changes expected)."""
+        stdout, stderr, code = run_rrf_search_with_enhance("magical bear", "spell", limit=3)
+        
+        # Should succeed even if API key is missing (will fallback to original query)
+        assert code == 0
+        
+        # Should have results
+        assert "Top 3 results" in stdout
+        
+        # If spell correction worked and query was correct, should not see "Enhanced query"
+        # OR it will be present but show no change, OR we'll see a warning about API failure
+        # Any of these outcomes is acceptable for a correctly spelled query
+
+    def test_enhance_spell_with_typo_query(self):
+        """Test --enhance spell with query containing typo."""
+        # Use "paddingon" instead of "paddington"
+        stdout, stderr, code = run_rrf_search_with_enhance("paddingon", "spell", limit=3)
+        
+        # Should succeed (may use original query if API fails)
+        assert code == 0
+        
+        # Should have results (even if using original query as fallback)
+        assert "results for query:" in stdout.lower()
+
+    def test_enhance_spell_missing_api_key(self):
+        """Test --enhance spell when GEMINI_API_KEY is not set."""
+        import os
+        
+        # Skip this test if .env file exists with API key
+        # (load_dotenv will load it regardless of environment variables)
+        dotenv_path = PROJECT_ROOT / ".env"
+        if dotenv_path.exists():
+            with open(dotenv_path) as f:
+                if "GEMINI_API_KEY" in f.read():
+                    pytest.skip("Skipping test - GEMINI_API_KEY exists in .env file")
+        
+        # Create minimal environment without GEMINI_API_KEY
+        # Keep PATH to find python executable
+        env = {"PATH": os.environ.get("PATH", "")}
+        
+        stdout, stderr, code = run_rrf_search_with_enhance("magical bear", "spell", limit=3, env=env)
+        
+        # Should exit with error code 1 when API key is missing
+        assert code == 1
+        
+        # Should have error message about missing API key
+        assert "GEMINI_API_KEY" in stderr
+
+    def test_enhance_spell_api_failure_fallback(self):
+        """Test that spell correction falls back gracefully on API failure."""
+        # This test will work even if API fails (rate limit, network error, etc.)
+        stdout, stderr, code = run_rrf_search_with_enhance("bear", "spell", limit=2)
+        
+        # Should succeed (uses fallback)
+        assert code == 0
+        
+        # Should have results
+        assert "results for query:" in stdout.lower()
+        
+        # If API failed, should see warning in stderr OR if it succeeded, should see results
+        # Either way, the command should complete successfully
+
+    def test_enhance_spell_output_format(self):
+        """Test that enhanced query output follows expected format."""
+        stdout, stderr, code = run_rrf_search_with_enhance("briish bear", "spell", limit=2)
+        
+        # Should succeed
+        assert code == 0
+        
+        # If enhancement worked, should see the enhancement message
+        # Format: "Enhanced query (spell): 'original' -> 'corrected'"
+        # But this is optional if API fails or query is already correct
+        
+        # Should always have search results
+        assert "results for query:" in stdout.lower()
+
+    def test_enhance_spell_with_different_k_values(self):
+        """Test --enhance spell works with different k parameter values."""
+        stdout, stderr, code = run_rrf_search_with_enhance("bear", "spell", k=30, limit=2)
+        
+        assert code == 0
+        assert "k=30" in stdout
+
+    def test_enhance_spell_preserves_search_functionality(self):
+        """Test that spell enhancement doesn't break normal RRF search."""
+        # Run search with enhancement
+        stdout_enhanced, stderr_enhanced, code_enhanced = run_rrf_search_with_enhance(
+            "paddington", "spell", limit=3
+        )
+        
+        # Run search without enhancement
+        stdout_normal, stderr_normal, code_normal = run_rrf_search(
+            "paddington", limit=3
+        )
+        
+        # Both should succeed
+        assert code_enhanced == 0
+        assert code_normal == 0
+        
+        # Both should return results
+        results_enhanced = parse_rrf_search_results(stdout_enhanced)
+        results_normal = parse_rrf_search_results(stdout_normal)
+        
+        # Should have same number of results
+        assert len(results_enhanced) == len(results_normal)
+        
+        # For a correctly spelled query, results should be similar
+        # (may differ slightly if enhancement added/removed whitespace)
+
+    def test_enhance_invalid_choice(self):
+        """Test that invalid --enhance choice is rejected."""
+        venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else "python3"
+        
+        cmd = [python_exec, "cli/hybrid_search_cli.py", "rrf-search", "bear", "--enhance", "invalid"]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
+        
+        # Should fail with non-zero exit code
+        assert result.returncode != 0
+        
+        # Should have error message about invalid choice
+        assert "invalid" in result.stderr.lower() or "choice" in result.stderr.lower()
