@@ -11,10 +11,14 @@ print("API key loaded successfully")
 
 client = genai.Client(api_key=api_key)
 
-response = client.models.generate_content(
-    model="gemini-2.0-flash-001",
-    contents="Why is Boot.dev such a great place to learn about RAG? Use one paragraph maximum."
-)
+try:
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents="Why is Boot.dev such a great place to learn about RAG? Use one paragraph maximum."
+    )
+except Exception as e:
+    print(f"Error calling Gemini API: {e}")
+    exit(1)
 
 print(response.text)
 print(f"Prompt Tokens: {response.usage_metadata.prompt_token_count}")
