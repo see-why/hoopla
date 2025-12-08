@@ -430,9 +430,18 @@ Rewritten query:"""
                     )
                     enhanced_query = response.text.strip()
                     
-                    # Validate the enhanced query
-                    if not enhanced_query or len(enhanced_query) > len(query) * 3:
-                        raise ValueError("Invalid enhancement response")
+                    # Validate the enhanced query with different thresholds
+                    if not enhanced_query:
+                        raise ValueError("Empty enhancement response")
+                    
+                    # Spell correction should be similar length, rewriting can be longer
+                    if args.enhance == "spell":
+                        max_length = len(query) * 3
+                    else:  # rewrite
+                        max_length = max(len(query) * 5, 200)  # At least 200 chars allowed
+                    
+                    if len(enhanced_query) > max_length:
+                        raise ValueError(f"Enhanced query too long ({len(enhanced_query)} chars)")
                     
                     if enhanced_query != query:
                         print(f"Enhanced query ({args.enhance}): '{query}' -> '{enhanced_query}'\n")
