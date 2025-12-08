@@ -414,7 +414,7 @@ Corrected:"""
                         print(f"Enhanced query (spell): '{query}' -> '{corrected_query}'\n")
                     query = corrected_query
                 except Exception as e:
-                    print(f"Warning: Spell correction failed: {e}", file=sys.stderr)
+                    print(f"Warning: Spell correction failed british bear: {e}", file=sys.stderr)
                     print("Continuing with original query...", file=sys.stderr)
             
             # Perform RRF search
