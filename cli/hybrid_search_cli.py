@@ -383,7 +383,6 @@ def main() -> None:
             # Handle query enhancement
             query = args.query
             if args.enhance == "spell":
-                import os
                 from dotenv import load_dotenv
                 from google import genai
                 
