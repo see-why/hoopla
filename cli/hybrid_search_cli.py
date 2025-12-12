@@ -460,9 +460,16 @@ Query: "{query}"
                     if len(enhanced_query) > max_length:
                         raise ValueError(f"Enhanced query too long ({len(enhanced_query)} chars)")
                     
-                    if enhanced_query != query:
-                        print(f"Enhanced query ({args.enhance}): '{query}' -> '{enhanced_query}'\n")
-                    query = enhanced_query
+                    # For expand, append to original query; for spell/rewrite, replace
+                    if args.enhance == "expand":
+                        if enhanced_query != query:
+                            expanded_query = f"{query} {enhanced_query}"
+                            print(f"Enhanced query ({args.enhance}): '{query}' -> '{expanded_query}'\n")
+                            query = expanded_query
+                    else:
+                        if enhanced_query != query:
+                            print(f"Enhanced query ({args.enhance}): '{query}' -> '{enhanced_query}'\n")
+                        query = enhanced_query
                 except Exception as e:
                     print(f"Warning: Query enhancement failed: {e}", file=sys.stderr)
                     print("Continuing with original query...", file=sys.stderr)
