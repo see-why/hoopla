@@ -382,7 +382,7 @@ def main() -> None:
             
             # Handle query enhancement
             query = args.query
-            if args.enhance in ["spell", "rewrite"]:
+            if args.enhance in ["spell", "rewrite", "expand"]:
                 from dotenv import load_dotenv
                 from google import genai
                 
@@ -403,7 +403,7 @@ Query: "{query}"
 
 If no errors, return the original query.
 Corrected:"""
-                else:  # rewrite
+                elif args.enhance == "rewrite":
                     prompt = f"""Rewrite this movie search query to be more specific and searchable.
 
 Original: "{query}"
@@ -422,6 +422,21 @@ Examples:
 - "scary movie with bear from few years ago" -> "bear horror movie 2015-2020"
 
 Rewritten query:"""
+                else:  # expand
+                    prompt = f"""Expand this movie search query with related terms.
+
+Add synonyms and related concepts that might appear in movie descriptions.
+Keep expansions relevant and focused.
+This will be appended to the original query.
+
+Examples:
+
+- "scary bear movie" -> "scary horror grizzly bear movie terrifying film"
+- "action movie with bear" -> "action thriller bear chase fight adventure"
+- "comedy with bear" -> "comedy funny bear humor lighthearted"
+
+Query: "{query}"
+"""
                 
                 try:
                     response = client.models.generate_content(
@@ -434,11 +449,13 @@ Rewritten query:"""
                     if not enhanced_query:
                         raise ValueError("Empty enhancement response")
                     
-                    # Spell correction should be similar length, rewriting can be longer
+                    # Spell correction should be similar length, rewriting can be longer, expansion can be even longer
                     if args.enhance == "spell":
                         max_length = len(query) * 3
-                    else:  # rewrite
+                    elif args.enhance == "rewrite":
                         max_length = max(len(query) * 5, 200)  # At least 200 chars allowed
+                    else:  # expand
+                        max_length = max(len(query) * 6, 250)  # Expansions can be longer
                     
                     if len(enhanced_query) > max_length:
                         raise ValueError(f"Enhanced query too long ({len(enhanced_query)} chars)")
