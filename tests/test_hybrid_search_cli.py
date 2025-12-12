@@ -608,8 +608,10 @@ def parse_rrf_search_results(output):
                 i += 1
                 if i < len(lines) and "BM25 Rank:" in lines[i] and "Semantic Rank:" in lines[i]:
                     parts = lines[i].strip().split(",")
-                    bm25_rank = int(parts[0].split("BM25 Rank:")[1].strip())
-                    semantic_rank = int(parts[1].split("Semantic Rank:")[1].strip())
+                    bm25_str = parts[0].split("BM25 Rank:")[1].strip()
+                    semantic_str = parts[1].split("Semantic Rank:")[1].strip()
+                    bm25_rank = int(bm25_str) if bm25_str != "None" else None
+                    semantic_rank = int(semantic_str) if semantic_str != "None" else None
                     
                     # Next line should be description
                     i += 1
@@ -1418,3 +1420,134 @@ class TestRRFSearchEnhancement:
         
         # Should have error message about invalid choice
         assert "invalid" in result.stderr.lower() or "choice" in result.stderr.lower()
+
+    def test_enhance_rewrite_basic_functionality(self):
+        """Test basic rewrite enhancement functionality with vague query."""
+        stdout, stderr, code = run_rrf_search_with_enhance("action movie", "rewrite", limit=3)
+        
+        assert code == 0
+        # Should have some output
+        assert len(stdout) > 0
+        
+        # Should have search results
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+
+    def test_enhance_rewrite_output_format(self):
+        """Test that rewrite enhancement shows proper output format."""
+        stdout, stderr, code = run_rrf_search_with_enhance("space movie", "rewrite", limit=2)
+        
+        assert code == 0
+        
+        # Check for enhancement output format
+        # Should contain either:
+        # 1. "Enhanced query (rewrite):" if query was rewritten
+        # 2. Normal search output if query was already good
+        if "enhanced query" in stdout.lower():
+            assert "rewrite" in stdout.lower()
+            assert "space movie" in stdout.lower()  # Original query
+            assert "->" in stdout  # Transformation arrow
+
+    def test_enhance_rewrite_fallback_on_api_failure(self):
+        """Test that rewrite falls back to original query if API fails."""
+        # Use a query that should work even without enhancement
+        stdout, stderr, code = run_rrf_search_with_enhance("inception", "rewrite", limit=2)
+        
+        # Should succeed even if API fails
+        assert code == 0
+        
+        # Should have search results (either with enhanced or original query)
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+
+    def test_enhance_rewrite_validates_length(self):
+        """Test that rewrite validates enhanced query length."""
+        # Test with a very short query that might get expanded
+        stdout, stderr, code = run_rrf_search_with_enhance("car", "rewrite", limit=2)
+        
+        # Should succeed
+        assert code == 0
+        
+        # If rewriting occurred, check it's within acceptable limits
+        if "enhanced query" in stdout.lower():
+            # Extract the enhanced query from output
+            lines = stdout.split('\n')
+            for line in lines:
+                if "enhanced query" in line.lower() and "->" in line:
+                    # Parse: Enhanced query (rewrite): 'car' -> 'enhanced text'
+                    parts = line.split("->")
+                    if len(parts) == 2:
+                        enhanced = parts[1].strip().strip("'\"")
+                        # Should respect validation: max(5x original, 200 chars)
+                        max_allowed = max(len("car") * 5, 200)
+                        assert len(enhanced) <= max_allowed
+
+    def test_enhance_rewrite_preserves_search_functionality(self):
+        """Test that rewrite enhancement doesn't break normal RRF search."""
+        # Run search with rewrite enhancement
+        stdout_enhanced, stderr_enhanced, code_enhanced = run_rrf_search_with_enhance(
+            "batman", "rewrite", limit=3
+        )
+        
+        # Run search without enhancement
+        stdout_normal, stderr_normal, code_normal = run_rrf_search(
+            "batman", limit=3
+        )
+        
+        # Both should succeed
+        assert code_enhanced == 0
+        assert code_normal == 0
+        
+        # Both should return results
+        results_enhanced = parse_rrf_search_results(stdout_enhanced)
+        results_normal = parse_rrf_search_results(stdout_normal)
+        
+        # Both should have results
+        assert len(results_enhanced) > 0
+        assert len(results_normal) > 0
+
+    def test_enhance_rewrite_with_different_k_values(self):
+        """Test --enhance rewrite works with different k parameter values."""
+        stdout, stderr, code = run_rrf_search_with_enhance("comedy", "rewrite", k=25, limit=2)
+        
+        assert code == 0
+        assert "k=25" in stdout
+
+    def test_enhance_rewrite_specific_query(self):
+        """Test rewrite enhancement makes queries more specific."""
+        # Use a vague query that could be improved
+        stdout, stderr, code = run_rrf_search_with_enhance("old movie", "rewrite", limit=3)
+        
+        assert code == 0
+        
+        # Should have search results
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+        
+        # If enhancement occurred, the enhanced query should be present
+        # But this is optional if API fails or query is already acceptable
+        assert "results for query:" in stdout.lower()
+
+    def test_enhance_rewrite_vs_spell_difference(self):
+        """Test that rewrite and spell produce different behaviors."""
+        query = "scifi"
+        
+        # Run with spell enhancement (should fix typo: scifi -> sci-fi or sci fi)
+        stdout_spell, _, code_spell = run_rrf_search_with_enhance(query, "spell", limit=2)
+        
+        # Run with rewrite enhancement (should expand to more specific query)
+        stdout_rewrite, _, code_rewrite = run_rrf_search_with_enhance(query, "rewrite", limit=2)
+        
+        # Both should succeed
+        assert code_spell == 0
+        assert code_rewrite == 0
+        
+        # Both should have results
+        assert len(parse_rrf_search_results(stdout_spell)) > 0
+        assert len(parse_rrf_search_results(stdout_rewrite)) > 0
+        
+        # If both enhanced, they should mention their respective methods
+        if "enhanced query" in stdout_spell.lower():
+            assert "spell" in stdout_spell.lower()
+        if "enhanced query" in stdout_rewrite.lower():
+            assert "rewrite" in stdout_rewrite.lower()

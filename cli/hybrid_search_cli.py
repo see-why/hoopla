@@ -272,7 +272,7 @@ def main() -> None:
     rrf_search_parser.add_argument(
         "--enhance",
         type=str,
-        choices=["spell"],
+        choices=["spell", "rewrite"],
         help="Query enhancement method",
     )
 
@@ -382,7 +382,7 @@ def main() -> None:
             
             # Handle query enhancement
             query = args.query
-            if args.enhance == "spell":
+            if args.enhance in ["spell", "rewrite"]:
                 from dotenv import load_dotenv
                 from google import genai
                 
@@ -394,7 +394,8 @@ def main() -> None:
                 
                 client = genai.Client(api_key=api_key)
                 
-                prompt = f"""Fix any spelling errors in this movie search query.
+                if args.enhance == "spell":
+                    prompt = f"""Fix any spelling errors in this movie search query.
 
 Only correct obvious typos. Don't change correctly spelled words.
 
@@ -402,23 +403,51 @@ Query: "{query}"
 
 If no errors, return the original query.
 Corrected:"""
+                else:  # rewrite
+                    prompt = f"""Rewrite this movie search query to be more specific and searchable.
+
+Original: "{query}"
+
+Consider:
+- Common movie knowledge (famous actors, popular films)
+- Genre conventions (horror = scary, animation = cartoon)
+- Keep it concise (under 10 words)
+- It should be a google style search query that's very specific
+- Don't use boolean logic
+
+Examples:
+
+- "that bear movie where leo gets attacked" -> "The Revenant Leonardo DiCaprio bear attack"
+- "movie about bear in london with marmalade" -> "Paddington London marmalade"
+- "scary movie with bear from few years ago" -> "bear horror movie 2015-2020"
+
+Rewritten query:"""
                 
                 try:
                     response = client.models.generate_content(
                         model="gemini-2.0-flash-001",
                         contents=prompt
                     )
-                    corrected_query = response.text.strip()
+                    enhanced_query = response.text.strip()
                     
-                    # Validate the corrected query
-                    if not corrected_query or len(corrected_query) > len(query) * 3:
-                        raise ValueError("Invalid correction response")
+                    # Validate the enhanced query with different thresholds
+                    if not enhanced_query:
+                        raise ValueError("Empty enhancement response")
                     
-                    if corrected_query != query:
-                        print(f"Enhanced query (spell): '{query}' -> '{corrected_query}'\n")
-                    query = corrected_query
+                    # Spell correction should be similar length, rewriting can be longer
+                    if args.enhance == "spell":
+                        max_length = len(query) * 3
+                    else:  # rewrite
+                        max_length = max(len(query) * 5, 200)  # At least 200 chars allowed
+                    
+                    if len(enhanced_query) > max_length:
+                        raise ValueError(f"Enhanced query too long ({len(enhanced_query)} chars)")
+                    
+                    if enhanced_query != query:
+                        print(f"Enhanced query ({args.enhance}): '{query}' -> '{enhanced_query}'\n")
+                    query = enhanced_query
                 except Exception as e:
-                    print(f"Warning: Spell correction failed: {e}", file=sys.stderr)
+                    print(f"Warning: Query enhancement failed: {e}", file=sys.stderr)
                     print("Continuing with original query...", file=sys.stderr)
             
             # Perform RRF search
