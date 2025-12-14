@@ -437,7 +437,7 @@ Examples:
 
 Query: "{query}"
 
-Additional terms:"""
+Expanded terms:"""
                 
                 try:
                     response = client.models.generate_content(
