@@ -1551,3 +1551,159 @@ class TestRRFSearchEnhancement:
             assert "spell" in stdout_spell.lower()
         if "enhanced query" in stdout_rewrite.lower():
             assert "rewrite" in stdout_rewrite.lower()
+
+    def test_enhance_expand_basic_functionality(self):
+        """Test basic expand enhancement functionality."""
+        stdout, stderr, code = run_rrf_search_with_enhance("bear movie", "expand", limit=3)
+        
+        assert code == 0
+        # Should have some output
+        assert len(stdout) > 0
+        
+        # Should have search results
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+
+    def test_enhance_expand_output_format(self):
+        """Test that expand enhancement shows proper output format."""
+        stdout, stderr, code = run_rrf_search_with_enhance("horror", "expand", limit=2)
+        
+        assert code == 0
+        
+        # Check for enhancement output format
+        # Should contain either:
+        # 1. "Enhanced query (expand):" if query was expanded
+        # 2. Normal search output if expansion wasn't needed
+        if "enhanced query" in stdout.lower():
+            assert "expand" in stdout.lower()
+            assert "horror" in stdout.lower()  # Original query should be in output
+            assert "->" in stdout  # Transformation arrow
+
+    def test_enhance_expand_appends_to_original(self):
+        """Test that expand appends terms to original query rather than replacing."""
+        stdout, stderr, code = run_rrf_search_with_enhance("action", "expand", limit=2)
+        
+        assert code == 0
+        
+        # If expansion occurred, the output should show the original + expansion
+        if "enhanced query" in stdout.lower():
+            lines = stdout.split('\n')
+            for line in lines:
+                if "enhanced query" in line.lower() and "->" in line:
+                    # Extract enhanced query
+                    parts = line.split("->")
+                    if len(parts) == 2:
+                        enhanced = parts[1].strip().strip("'\"")
+                        # Enhanced query should start with original query
+                        assert enhanced.startswith("action"), f"Enhanced query '{enhanced}' should start with 'action'"
+
+    def test_enhance_expand_validates_length(self):
+        """Test that expand validates enhanced query length."""
+        # Test with a short query
+        stdout, stderr, code = run_rrf_search_with_enhance("war", "expand", limit=2)
+        
+        # Should succeed
+        assert code == 0
+        
+        # If expansion occurred, check it's within acceptable limits
+        if "enhanced query" in stdout.lower():
+            lines = stdout.split('\n')
+            for line in lines:
+                if "enhanced query" in line.lower() and "->" in line:
+                    # Parse: Enhanced query (expand): 'war' -> 'war battle conflict...'
+                    parts = line.split("->")
+                    if len(parts) == 2:
+                        enhanced = parts[1].strip().strip("'\"")
+                        # Should respect validation: max(6x original, 250 chars)
+                        max_allowed = max(len("war") * 6, 250)
+                        assert len(enhanced) <= max_allowed
+
+    def test_enhance_expand_fallback_on_api_failure(self):
+        """Test that expand falls back to original query if API fails."""
+        # Use a query that should work even without enhancement
+        stdout, stderr, code = run_rrf_search_with_enhance("comedy", "expand", limit=2)
+        
+        # Should succeed even if API fails
+        assert code == 0
+        
+        # Should have search results (either with enhanced or original query)
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+
+    def test_enhance_expand_preserves_search_functionality(self):
+        """Test that expand enhancement doesn't break normal RRF search."""
+        # Run search with expand enhancement
+        stdout_enhanced, stderr_enhanced, code_enhanced = run_rrf_search_with_enhance(
+            "thriller", "expand", limit=3
+        )
+        
+        # Run search without enhancement
+        stdout_normal, stderr_normal, code_normal = run_rrf_search(
+            "thriller", limit=3
+        )
+        
+        # Both should succeed
+        assert code_enhanced == 0
+        assert code_normal == 0
+        
+        # Both should return results
+        results_enhanced = parse_rrf_search_results(stdout_enhanced)
+        results_normal = parse_rrf_search_results(stdout_normal)
+        
+        # Both should have results
+        assert len(results_enhanced) > 0
+        assert len(results_normal) > 0
+
+    def test_enhance_expand_with_different_k_values(self):
+        """Test --enhance expand works with different k parameter values."""
+        stdout, stderr, code = run_rrf_search_with_enhance("adventure", "expand", k=30, limit=2)
+        
+        assert code == 0
+        assert "k=30" in stdout
+
+    def test_enhance_expand_adds_related_terms(self):
+        """Test that expand adds related terms to make search more comprehensive."""
+        # Use a specific query
+        stdout, stderr, code = run_rrf_search_with_enhance("scary", "expand", limit=3)
+        
+        assert code == 0
+        
+        # Should have search results
+        results = parse_rrf_search_results(stdout)
+        assert len(results) > 0
+        
+        # If enhancement occurred, the enhanced query should be present
+        assert "results for query:" in stdout.lower()
+
+    def test_enhance_expand_vs_rewrite_difference(self):
+        """Test that expand appends while rewrite replaces."""
+        query = "bear"
+        
+        # Run with expand (should append related terms)
+        stdout_expand, _, code_expand = run_rrf_search_with_enhance(query, "expand", limit=2)
+        
+        # Run with rewrite (should replace with more specific query)
+        stdout_rewrite, _, code_rewrite = run_rrf_search_with_enhance(query, "rewrite", limit=2)
+        
+        # Both should succeed
+        assert code_expand == 0
+        assert code_rewrite == 0
+        
+        # Both should have results
+        assert len(parse_rrf_search_results(stdout_expand)) > 0
+        assert len(parse_rrf_search_results(stdout_rewrite)) > 0
+        
+        # Check their respective methods are mentioned
+        if "enhanced query" in stdout_expand.lower():
+            assert "expand" in stdout_expand.lower()
+            # For expand, original query should be at the start
+            lines = stdout_expand.split('\n')
+            for line in lines:
+                if "enhanced query" in line.lower() and "->" in line:
+                    parts = line.split("->")
+                    if len(parts) == 2:
+                        enhanced = parts[1].strip().strip("'\"")
+                        assert enhanced.startswith(query), f"Expand should append, not replace"
+        
+        if "enhanced query" in stdout_rewrite.lower():
+            assert "rewrite" in stdout_rewrite.lower()
