@@ -427,16 +427,17 @@ Rewritten query:"""
 
 Add synonyms and related concepts that might appear in movie descriptions.
 Keep expansions relevant and focused.
-This will be appended to the original query.
+Return ONLY the additional terms (not the original query) - they will be appended automatically.
 
 Examples:
 
-- "scary bear movie" -> "scary horror grizzly bear movie terrifying film"
-- "action movie with bear" -> "action thriller bear chase fight adventure"
-- "comedy with bear" -> "comedy funny bear humor lighthearted"
+- "scary bear movie" -> "horror grizzly terrifying film"
+- "action movie with bear" -> "thriller chase fight adventure"
+- "comedy with bear" -> "funny humor lighthearted"
 
 Query: "{query}"
-"""
+
+Additional terms:"""
                 
                 try:
                     response = client.models.generate_content(
