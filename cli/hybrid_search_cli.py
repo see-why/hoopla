@@ -24,6 +24,11 @@ EXPANSION_FACTOR = 500
 # requested limit. This prevents excessive memory usage and processing time for large limit values.
 MAX_EXPANDED_LIMIT = 10000
 
+# DEFAULT_RERANK_MULTIPLIER: Default multiplier for initial search limit when using LLM-based reranking.
+# A higher multiplier provides more candidates for reranking (improving accuracy) but increases API calls
+# and processing time. Can be overridden via --rerank-multiplier argument.
+DEFAULT_RERANK_MULTIPLIER = 5
+
 
 def get_gemini_client():
     """
@@ -309,6 +314,12 @@ def main() -> None:
         choices=["individual"],
         help="Reranking method to apply after RRF search",
     )
+    rrf_search_parser.add_argument(
+        "--rerank-multiplier",
+        type=int,
+        default=DEFAULT_RERANK_MULTIPLIER,
+        help=f"Multiplier for initial search limit when reranking (default: {DEFAULT_RERANK_MULTIPLIER}). Higher values provide more candidates for reranking.",
+    )
 
     args = parser.parse_args()
 
@@ -502,7 +513,7 @@ Expanded terms:"""
             
             # Perform RRF search
             # If reranking, gather more results initially
-            search_limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
+            search_limit = args.limit * args.rerank_multiplier if args.rerank_method == "individual" else args.limit
             results = hs.rrf_search(query, args.k, search_limit)
             
             # Apply individual reranking if specified
