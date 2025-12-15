@@ -505,19 +505,18 @@ Expanded terms:"""
             
             # Apply individual reranking if specified
             if args.rerank_method == "individual" and results:
-                import time
+                import asyncio
                 
                 client = get_gemini_client()
                 
                 print(f"Reranking {len(results)} results to return top {args.limit}...")
                 
-                # Score each document individually
-                reranked_results = []
-                for i, (doc_id, scores) in enumerate(results):
+                async def score_document(doc_id, scores):
+                    """Score a single document asynchronously."""
                     doc = next((d for d in docs if d.get("id") == doc_id), None)
                     if not doc:
                         print(f"Warning: Document with ID {doc_id} not found, skipping", file=sys.stderr)
-                        continue
+                        return None
                     
                     prompt = f"""Rate how well this movie matches the search query.
 
@@ -535,9 +534,14 @@ Give me ONLY the number in your response, no other text or explanation.
 Score:"""
                     
                     try:
-                        response = client.models.generate_content(
-                            model="gemini-2.0-flash-001",
-                            contents=prompt
+                        # Run the synchronous API call in a thread pool to avoid blocking
+                        loop = asyncio.get_event_loop()
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: client.models.generate_content(
+                                model="gemini-2.0-flash-001",
+                                contents=prompt
+                            )
                         )
                         score_text = response.text.strip()
                         # Extract numeric score
@@ -545,18 +549,27 @@ Score:"""
                         
                         # Validate score is in range
                         if 0 <= llm_score <= 10:
-                            reranked_results.append((doc_id, {
+                            return (doc_id, {
                                 **scores,
                                 'llm_score': llm_score
-                            }))
+                            })
                         else:
                             print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                            return None
                     except Exception as e:
                         print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
-                    
-                    # Sleep between API calls to avoid rate limits (skip after last item)
-                    if i < len(results) - 1:
-                        time.sleep(3)
+                        return None
+                
+                async def score_all_documents():
+                    """Score all documents concurrently."""
+                    tasks = [score_document(doc_id, scores) for doc_id, scores in results]
+                    return await asyncio.gather(*tasks)
+                
+                # Run async scoring
+                scored_results = asyncio.run(score_all_documents())
+                
+                # Filter out None results and collect valid scores
+                reranked_results = [result for result in scored_results if result is not None]
                 
                 # Sort by LLM score (descending) and take top limit
                 reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
