@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+import re
 import sys
 
 try:
@@ -543,8 +544,32 @@ Score:"""
                             )
                         )
                         score_text = response.text.strip()
-                        # Extract numeric score
-                        llm_score = float(score_text)
+                        
+                        # Extract numeric score with robust parsing
+                        # Try to find a number in the response (handles cases where LLM adds extra text)
+                        llm_score = None
+                        
+                        # First, try direct conversion (fastest path)
+                        try:
+                            llm_score = float(score_text)
+                        except ValueError:
+                            # If that fails, try to extract the first number using regex
+                            match = re.search(r'\b(\d+(?:\.\d+)?)\b', score_text)
+                            if match:
+                                llm_score = float(match.group(1))
+                            else:
+                                # Last resort: try splitting on whitespace and converting first token
+                                tokens = score_text.split()
+                                for token in tokens:
+                                    try:
+                                        llm_score = float(token)
+                                        break
+                                    except ValueError:
+                                        continue
+                        
+                        if llm_score is None:
+                            print(f"Warning: Could not extract score from response '{score_text}' for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                            return None
                         
                         # Validate score is in range
                         if 0 <= llm_score <= 10:
