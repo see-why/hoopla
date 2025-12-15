@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import sys
 
 try:
     from cli.keyword_search_cli import InvertedIndex
@@ -20,6 +21,31 @@ EXPANSION_FACTOR = 500
 # MAX_EXPANDED_LIMIT: Maximum number of results to fetch from each search method, regardless of
 # requested limit. This prevents excessive memory usage and processing time for large limit values.
 MAX_EXPANDED_LIMIT = 10000
+
+
+def get_gemini_client():
+    """
+    Initialize and return a Gemini API client.
+    
+    Loads the API key from environment variables using dotenv and creates a Gemini client.
+    Exits with an error if the API key is not set.
+    
+    Returns:
+        genai.Client: Initialized Gemini API client
+    
+    Raises:
+        SystemExit: If GEMINI_API_KEY environment variable is not set
+    """
+    from dotenv import load_dotenv
+    from google import genai
+    
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
+        sys.exit(1)
+    
+    return genai.Client(api_key=api_key)
 
 
 class HybridSearch:
@@ -389,16 +415,7 @@ def main() -> None:
             # Handle query enhancement
             query = args.query
             if args.enhance in ["spell", "rewrite", "expand"]:
-                from dotenv import load_dotenv
-                from google import genai
-                
-                load_dotenv()
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key:
-                    print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
-                    sys.exit(1)
-                
-                client = genai.Client(api_key=api_key)
+                client = get_gemini_client()
                 
                 if args.enhance == "spell":
                     prompt = f"""Fix any spelling errors in this movie search query.
@@ -489,16 +506,8 @@ Expanded terms:"""
             # Apply individual reranking if specified
             if args.rerank_method == "individual" and results:
                 import time
-                from dotenv import load_dotenv
-                from google import genai
                 
-                load_dotenv()
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key:
-                    print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
-                    sys.exit(1)
-                
-                client = genai.Client(api_key=api_key)
+                client = get_gemini_client()
                 
                 print(f"Reranking {len(results)} results to return top {args.limit}...")
                 
@@ -524,24 +533,24 @@ Rate 0-10 (10 = perfect match).
 Give me ONLY the number in your response, no other text or explanation.
 
 Score:"""
+                    
+                    try:
+                        response = client.models.generate_content(
+                            model="gemini-2.0-flash-001",
+                            contents=prompt
+                        )
+                        score_text = response.text.strip()
+                        # Extract numeric score
+                        llm_score = float(score_text)
                         
-                        try:
-                            response = client.models.generate_content(
-                                model="gemini-2.0-flash-001",
-                                contents=prompt
-                            )
-                            score_text = response.text.strip()
-                            # Extract numeric score
-                            llm_score = float(score_text)
-                            
-                            # Validate score is in range
-                            if 0 <= llm_score <= 10:
-                                reranked_results.append((doc_id, {
-                                    **scores,
-                                    'llm_score': llm_score
-                                }))
-                            else:
-                                print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                        # Validate score is in range
+                        if 0 <= llm_score <= 10:
+                            reranked_results.append((doc_id, {
+                                **scores,
+                                'llm_score': llm_score
+                            }))
+                        else:
+                            print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
                     except Exception as e:
                         print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
                     
