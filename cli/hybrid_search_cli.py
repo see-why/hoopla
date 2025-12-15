@@ -482,7 +482,9 @@ Expanded terms:"""
                     print("Continuing with original query...", file=sys.stderr)
             
             # Perform RRF search
-            results = hs.rrf_search(query, args.k, args.limit)
+            # If reranking, gather more results initially
+            search_limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
+            results = hs.rrf_search(query, args.k, search_limit)
             
             # Print results with rank information
             if not results:
