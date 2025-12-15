@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import os
 import sys
 
@@ -505,8 +506,6 @@ Expanded terms:"""
             
             # Apply individual reranking if specified
             if args.rerank_method == "individual" and results:
-                import asyncio
-                
                 client = get_gemini_client()
                 
                 print(f"Reranking {len(results)} results to return top {args.limit}...")
