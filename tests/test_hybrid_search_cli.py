@@ -1740,7 +1740,7 @@ class TestRRFSearchReranking:
         assert "Reranking" in stdout and "results to return top 3" in stdout
         
         # Should have results
-        assert "Reciprocal Rank Fusion Results" in stdout
+        assert "LLM Reranked Results" in stdout
 
     def test_rerank_individual_output_format(self):
         """Test that individual reranking shows proper output format."""
@@ -1751,8 +1751,8 @@ class TestRRFSearchReranking:
         # Should have reranking message
         assert "Reranking" in stdout and "results to return top 2" in stdout
         
-        # Should have RRF results header
-        assert "Reciprocal Rank Fusion Results for 'comedy'" in stdout
+        # Should have LLM reranking results header
+        assert "LLM Reranked Results" in stdout and "for 'comedy'" in stdout
         
         # Should show Rerank Score
         assert "Rerank Score:" in stdout
@@ -1849,7 +1849,7 @@ class TestRRFSearchReranking:
         assert code_normal == 0
         
         # Both should have results
-        assert "results for query:" in stdout_reranked.lower() or "Reciprocal Rank Fusion Results" in stdout_reranked
+        assert "results for query:" in stdout_reranked.lower() or "LLM Reranked Results" in stdout_reranked
         assert "results for query:" in stdout_normal.lower()
 
     def test_rerank_individual_invalid_choice(self):
