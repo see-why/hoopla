@@ -486,6 +486,63 @@ Expanded terms:"""
             search_limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
             results = hs.rrf_search(query, args.k, search_limit)
             
+            # Apply individual reranking if specified
+            if args.rerank_method == "individual" and results:
+                from dotenv import load_dotenv
+                from google import genai
+                
+                load_dotenv()
+                api_key = os.environ.get("GEMINI_API_KEY")
+                if not api_key:
+                    print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
+                    sys.exit(1)
+                
+                client = genai.Client(api_key=api_key)
+                
+                # Score each document individually
+                reranked_results = []
+                for doc_id, scores in results:
+                    doc = next((d for d in docs if d.get("id") == doc_id), None)
+                    if doc:
+                        prompt = f"""Rate how well this movie matches the search query.
+
+Query: "{query}"
+Movie: {doc.get("title", "")} - {doc.get("document", "")}
+
+Consider:
+- Direct relevance to query
+- User intent (what they're looking for)
+- Content appropriateness
+
+Rate 0-10 (10 = perfect match).
+Give me ONLY the number in your response, no other text or explanation.
+
+Score:"""
+                        
+                        try:
+                            response = client.models.generate_content(
+                                model="gemini-2.0-flash-001",
+                                contents=prompt
+                            )
+                            score_text = response.text.strip()
+                            # Extract numeric score
+                            llm_score = float(score_text)
+                            
+                            # Validate score is in range
+                            if 0 <= llm_score <= 10:
+                                reranked_results.append((doc_id, {
+                                    **scores,
+                                    'llm_score': llm_score
+                                }))
+                            else:
+                                print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                        except Exception as e:
+                            print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
+                
+                # Sort by LLM score (descending) and take top limit
+                reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
+                results = reranked_results[:args.limit]
+            
             # Print results with rank information
             if not results:
                 print("No results found.")
@@ -506,6 +563,11 @@ Expanded terms:"""
                         # Print formatted output
                         print(f"{rank}. {title}")
                         print(f"   RRF Score: {scores['rrf']:.3f}")
+                        
+                        # Show LLM score if reranked
+                        if 'llm_score' in scores:
+                            print(f"   LLM Score: {scores['llm_score']:.1f}/10")
+                        
                         print(f"   BM25 Rank: {scores['bm25_rank']}, Semantic Rank: {scores['semantic_rank']}")
                         print(f"   {description}\n")
         case _:
