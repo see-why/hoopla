@@ -568,7 +568,7 @@ Score:"""
             else:
                 # Customize header based on whether reranking was applied
                 if args.rerank_method == "individual":
-                    print(f"Reciprocal Rank Fusion Results for '{query}' (k={args.k}):\n")
+                    print(f"LLM Reranked Results (RRF + Individual Reranking) for '{query}' (k={args.k}):\n")
                 else:
                     print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
