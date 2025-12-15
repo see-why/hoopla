@@ -500,7 +500,7 @@ Expanded terms:"""
                 
                 client = genai.Client(api_key=api_key)
                 
-                print(f"Reranking top {args.limit} results using individual method...")
+                print(f"Reranking {len(results)} results to return top {args.limit}...")
                 
                 # Score each document individually
                 reranked_results = []
