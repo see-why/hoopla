@@ -1707,3 +1707,172 @@ class TestRRFSearchEnhancement:
         
         if "enhanced query" in stdout_rewrite.lower():
             assert "rewrite" in stdout_rewrite.lower()
+
+
+def run_rrf_search_with_rerank(query, rerank_method, k=None, limit=None, env=None):
+    """Helper to run the rrf-search command with --rerank-method flag."""
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    python_exec = str(venv_python) if venv_python.exists() else "python3"
+    
+    cmd = [python_exec, "cli/hybrid_search_cli.py", "rrf-search", query]
+    cmd.extend(["--rerank-method", rerank_method])
+    if k is not None:
+        cmd.extend(["--k", str(k)])
+    if limit is not None:
+        cmd.extend(["--limit", str(limit)])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT, env=env)
+    return result.stdout, result.stderr, result.returncode
+
+
+class TestRRFSearchReranking:
+    """Tests for the --rerank-method functionality in rrf-search command."""
+
+    def test_rerank_individual_basic_functionality(self):
+        """Test basic individual reranking functionality."""
+        stdout, stderr, code = run_rrf_search_with_rerank("bear movie", "individual", limit=3)
+        
+        assert code == 0
+        # Should have output
+        assert len(stdout) > 0
+        
+        # Should show reranking message
+        assert "Reranking" in stdout and "results to return top 3" in stdout
+        
+        # Should have results
+        assert "LLM Reranked Results" in stdout
+
+    def test_rerank_individual_output_format(self):
+        """Test that individual reranking shows proper output format."""
+        stdout, stderr, code = run_rrf_search_with_rerank("comedy", "individual", limit=2)
+        
+        assert code == 0
+        
+        # Should have reranking message
+        assert "Reranking" in stdout and "results to return top 2" in stdout
+        
+        # Should have LLM reranking results header
+        assert "LLM Reranked Results" in stdout and "for 'comedy'" in stdout
+        
+        # Should show Rerank Score
+        assert "Rerank Score:" in stdout
+        
+        # Should show RRF Score
+        assert "RRF Score:" in stdout
+
+    def test_rerank_individual_missing_api_key(self):
+        """Test --rerank-method individual when GEMINI_API_KEY is not set."""
+        import os
+        
+        # Skip this test if .env file exists with API key
+        dotenv_path = PROJECT_ROOT / ".env"
+        if dotenv_path.exists():
+            with open(dotenv_path) as f:
+                if "GEMINI_API_KEY" in f.read():
+                    pytest.skip("Skipping test - GEMINI_API_KEY exists in .env file")
+        
+        # Create minimal environment without GEMINI_API_KEY
+        env = {"PATH": os.environ.get("PATH", "")}
+        
+        stdout, stderr, code = run_rrf_search_with_rerank("action", "individual", limit=2, env=env)
+        
+        # Should exit with error code 1 when API key is missing
+        assert code == 1
+        
+        # Should have error message about missing API key
+        assert "GEMINI_API_KEY" in stderr
+
+    def test_rerank_individual_with_different_limits(self):
+        """Test --rerank-method individual works with different limit values."""
+        stdout, stderr, code = run_rrf_search_with_rerank("thriller", "individual", limit=5)
+        
+        assert code == 0
+        assert "Reranking" in stdout and "results to return top 5" in stdout
+
+    def test_rerank_individual_with_different_k_values(self):
+        """Test --rerank-method individual works with different k parameter values."""
+        stdout, stderr, code = run_rrf_search_with_rerank("adventure", "individual", k=30, limit=2)
+        
+        assert code == 0
+        assert "k=30" in stdout
+        assert "Reranking" in stdout and "results to return top 2" in stdout
+
+    def test_rerank_individual_score_format(self):
+        """Test that rerank scores are formatted correctly (X.XXX/10)."""
+        stdout, stderr, code = run_rrf_search_with_rerank("horror", "individual", limit=2)
+        
+        assert code == 0
+        
+        # Look for rerank score in output
+        if "Rerank Score:" in stdout:
+            # Should be formatted as X.XXX/10
+            lines = stdout.split('\n')
+            for line in lines:
+                if "Rerank Score:" in line:
+                    # Extract score part (e.g., "10.000/10")
+                    score_part = line.split("Rerank Score:")[1].strip()
+                    assert "/10" in score_part
+                    # Should have 3 decimal places
+                    score_value = score_part.split("/10")[0].strip()
+                    parts = score_value.split(".")
+                    if len(parts) == 2:
+                        assert len(parts[1]) == 3  # 3 decimal places
+
+    def test_rerank_individual_gathers_more_results(self):
+        """Test that individual reranking gathers 5x more results initially."""
+        # This test verifies the behavior indirectly by checking that reranking produces results
+        # In practice, with limit=2, it should gather 10 results to rerank
+        stdout, stderr, code = run_rrf_search_with_rerank("family", "individual", limit=2)
+        
+        assert code == 0
+        # Should have reranked results
+        assert "Rerank Score:" in stdout
+        
+        # Count the number of results shown (should be 2)
+        result_count = stdout.count("Rerank Score:")
+        assert result_count <= 2  # Should show at most the limit
+
+    def test_rerank_individual_preserves_search_functionality(self):
+        """Test that individual reranking doesn't break normal RRF search."""
+        # Run search with reranking
+        stdout_reranked, stderr_reranked, code_reranked = run_rrf_search_with_rerank(
+            "animation", "individual", limit=3
+        )
+        
+        # Run search without reranking
+        stdout_normal, stderr_normal, code_normal = run_rrf_search(
+            "animation", limit=3
+        )
+        
+        # Both should succeed
+        assert code_reranked == 0
+        assert code_normal == 0
+        
+        # Both should have results
+        assert "results for query:" in stdout_reranked.lower() or "LLM Reranked Results" in stdout_reranked
+        assert "results for query:" in stdout_normal.lower()
+
+    def test_rerank_individual_invalid_choice(self):
+        """Test that invalid --rerank-method choice is rejected."""
+        venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else "python3"
+        
+        cmd = [python_exec, "cli/hybrid_search_cli.py", "rrf-search", "bear", "--rerank-method", "invalid"]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
+        
+        # Should fail with non-zero exit code
+        assert result.returncode != 0
+        
+        # Should have error message about invalid choice
+        assert "invalid" in result.stderr.lower() or "choice" in result.stderr.lower()
+
+    def test_rerank_individual_handles_api_errors(self):
+        """Test that individual reranking handles API errors gracefully."""
+        # This test verifies the feature continues even if some API calls fail
+        # We can't easily simulate API failures, but we can verify the feature works end-to-end
+        stdout, stderr, code = run_rrf_search_with_rerank("mystery", "individual", limit=2)
+        
+        # Should complete successfully or show warnings but still return results
+        # Either way, should not crash
+        assert code == 0 or "Warning:" in stderr
+

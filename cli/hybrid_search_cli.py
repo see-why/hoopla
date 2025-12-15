@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import os
+import re
+import sys
 
 try:
     from cli.keyword_search_cli import InvertedIndex
@@ -20,6 +23,36 @@ EXPANSION_FACTOR = 500
 # MAX_EXPANDED_LIMIT: Maximum number of results to fetch from each search method, regardless of
 # requested limit. This prevents excessive memory usage and processing time for large limit values.
 MAX_EXPANDED_LIMIT = 10000
+
+# DEFAULT_RERANK_MULTIPLIER: Default multiplier for initial search limit when using LLM-based reranking.
+# A higher multiplier provides more candidates for reranking (improving accuracy) but increases API calls
+# and processing time. Can be overridden via --rerank-multiplier argument.
+DEFAULT_RERANK_MULTIPLIER = 5
+
+
+def get_gemini_client():
+    """
+    Initialize and return a Gemini API client.
+    
+    Loads the API key from environment variables using dotenv and creates a Gemini client.
+    Exits with an error if the API key is not set.
+    
+    Returns:
+        genai.Client: Initialized Gemini API client
+    
+    Raises:
+        SystemExit: If GEMINI_API_KEY environment variable is not set
+    """
+    from dotenv import load_dotenv
+    from google import genai
+    
+    load_dotenv()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
+        sys.exit(1)
+    
+    return genai.Client(api_key=api_key)
 
 
 class HybridSearch:
@@ -275,6 +308,18 @@ def main() -> None:
         choices=["spell", "rewrite", "expand"],
         help="Query enhancement method",
     )
+    rrf_search_parser.add_argument(
+        "--rerank-method",
+        type=str,
+        choices=["individual"],
+        help="Reranking method to apply after RRF search",
+    )
+    rrf_search_parser.add_argument(
+        "--rerank-multiplier",
+        type=int,
+        default=DEFAULT_RERANK_MULTIPLIER,
+        help=f"Multiplier for initial search limit when reranking (default: {DEFAULT_RERANK_MULTIPLIER}). Higher values provide more candidates for reranking.",
+    )
 
     args = parser.parse_args()
 
@@ -383,16 +428,7 @@ def main() -> None:
             # Handle query enhancement
             query = args.query
             if args.enhance in ["spell", "rewrite", "expand"]:
-                from dotenv import load_dotenv
-                from google import genai
-                
-                load_dotenv()
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key:
-                    print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
-                    sys.exit(1)
-                
-                client = genai.Client(api_key=api_key)
+                client = get_gemini_client()
                 
                 if args.enhance == "spell":
                     prompt = f"""Fix any spelling errors in this movie search query.
@@ -476,13 +512,113 @@ Expanded terms:"""
                     print("Continuing with original query...", file=sys.stderr)
             
             # Perform RRF search
-            results = hs.rrf_search(query, args.k, args.limit)
+            # If reranking, gather more results initially
+            search_limit = args.limit * args.rerank_multiplier if args.rerank_method == "individual" else args.limit
+            results = hs.rrf_search(query, args.k, search_limit)
+            
+            # Apply individual reranking if specified
+            if args.rerank_method == "individual" and results:
+                client = get_gemini_client()
+                
+                print(f"Reranking {len(results)} results to return top {args.limit}...")
+                
+                async def score_document(doc_id, scores):
+                    """Score a single document asynchronously."""
+                    doc = next((d for d in docs if d.get("id") == doc_id), None)
+                    if not doc:
+                        print(f"Warning: Document with ID {doc_id} not found, skipping", file=sys.stderr)
+                        return None
+                    
+                    prompt = f"""Rate how well this movie matches the search query.
+
+Query: "{query}"
+Movie: {doc.get("title", "")} - {doc.get("document", "")}
+
+Consider:
+- Direct relevance to query
+- User intent (what they're looking for)
+- Content appropriateness
+
+Rate 0-10 (10 = perfect match).
+Give me ONLY the number in your response, no other text or explanation.
+
+Score:"""
+                    
+                    try:
+                        # Run the synchronous API call in a thread pool to avoid blocking
+                        loop = asyncio.get_event_loop()
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: client.models.generate_content(
+                                model="gemini-2.0-flash-001",
+                                contents=prompt
+                            )
+                        )
+                        score_text = response.text.strip()
+                        
+                        # Extract numeric score with robust parsing
+                        # Try to find a number in the response (handles cases where LLM adds extra text)
+                        llm_score = None
+                        
+                        # First, try direct conversion (fastest path)
+                        try:
+                            llm_score = float(score_text)
+                        except ValueError:
+                            # If that fails, try to extract the first number using regex
+                            match = re.search(r'\b(\d+(?:\.\d+)?)\b', score_text)
+                            if match:
+                                llm_score = float(match.group(1))
+                            else:
+                                # Last resort: try splitting on whitespace and converting first token
+                                tokens = score_text.split()
+                                for token in tokens:
+                                    try:
+                                        llm_score = float(token)
+                                        break
+                                    except ValueError:
+                                        continue
+                        
+                        if llm_score is None:
+                            print(f"Warning: Could not extract score from response '{score_text}' for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                            return None
+                        
+                        # Validate score is in range
+                        if 0 <= llm_score <= 10:
+                            return (doc_id, {
+                                **scores,
+                                'llm_score': llm_score
+                            })
+                        else:
+                            print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
+                            return None
+                    except Exception as e:
+                        print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
+                        return None
+                
+                async def score_all_documents():
+                    """Score all documents concurrently."""
+                    tasks = [score_document(doc_id, scores) for doc_id, scores in results]
+                    return await asyncio.gather(*tasks)
+                
+                # Run async scoring
+                scored_results = asyncio.run(score_all_documents())
+                
+                # Filter out None results and collect valid scores
+                reranked_results = [result for result in scored_results if result is not None]
+                
+                # Sort by LLM score (descending) and take top limit
+                reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
+                results = reranked_results[:args.limit]
             
             # Print results with rank information
             if not results:
                 print("No results found.")
             else:
-                print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
+                # Customize header based on whether reranking was applied
+                if args.rerank_method == "individual":
+                    print(f"LLM Reranked Results (RRF + Individual Reranking) for '{query}' (k={args.k}):\n")
+                else:
+                    print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
                 for rank, (doc_id, scores) in enumerate(results, start=1):
                     # Find document by id
@@ -497,7 +633,13 @@ Expanded terms:"""
                         
                         # Print formatted output
                         print(f"{rank}. {title}")
+                        
+                        # Show rerank score first if reranked
+                        if 'llm_score' in scores:
+                            print(f"   Rerank Score: {scores['llm_score']:.3f}/10")
+                        
                         print(f"   RRF Score: {scores['rrf']:.3f}")
+                        
                         print(f"   BM25 Rank: {scores['bm25_rank']}, Semantic Rank: {scores['semantic_rank']}")
                         print(f"   {description}\n")
         case _:
