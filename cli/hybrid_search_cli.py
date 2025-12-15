@@ -506,8 +506,11 @@ Expanded terms:"""
                 reranked_results = []
                 for i, (doc_id, scores) in enumerate(results):
                     doc = next((d for d in docs if d.get("id") == doc_id), None)
-                    if doc:
-                        prompt = f"""Rate how well this movie matches the search query.
+                    if not doc:
+                        print(f"Warning: Document with ID {doc_id} not found, skipping", file=sys.stderr)
+                        continue
+                    
+                    prompt = f"""Rate how well this movie matches the search query.
 
 Query: "{query}"
 Movie: {doc.get("title", "")} - {doc.get("document", "")}
@@ -539,12 +542,12 @@ Score:"""
                                 }))
                             else:
                                 print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
-                        except Exception as e:
-                            print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
-                        
-                        # Sleep between API calls to avoid rate limits (skip after last item)
-                        if i < len(results) - 1:
-                            time.sleep(3)
+                    except Exception as e:
+                        print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
+                    
+                    # Sleep between API calls to avoid rate limits (skip after last item)
+                    if i < len(results) - 1:
+                        time.sleep(3)
                 
                 # Sort by LLM score (descending) and take top limit
                 reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
