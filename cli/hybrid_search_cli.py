@@ -488,6 +488,7 @@ Expanded terms:"""
             
             # Apply individual reranking if specified
             if args.rerank_method == "individual" and results:
+                import time
                 from dotenv import load_dotenv
                 from google import genai
                 
@@ -499,9 +500,11 @@ Expanded terms:"""
                 
                 client = genai.Client(api_key=api_key)
                 
+                print(f"Reranking top {args.limit} results using individual method...")
+                
                 # Score each document individually
                 reranked_results = []
-                for doc_id, scores in results:
+                for i, (doc_id, scores) in enumerate(results):
                     doc = next((d for d in docs if d.get("id") == doc_id), None)
                     if doc:
                         prompt = f"""Rate how well this movie matches the search query.
@@ -538,6 +541,10 @@ Score:"""
                                 print(f"Warning: Invalid score {llm_score} for {doc.get('title', 'unknown')}, skipping", file=sys.stderr)
                         except Exception as e:
                             print(f"Warning: Reranking failed for {doc.get('title', 'unknown')}: {e}", file=sys.stderr)
+                        
+                        # Sleep between API calls to avoid rate limits (skip after last item)
+                        if i < len(results) - 1:
+                            time.sleep(3)
                 
                 # Sort by LLM score (descending) and take top limit
                 reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
@@ -547,7 +554,11 @@ Score:"""
             if not results:
                 print("No results found.")
             else:
-                print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
+                # Customize header based on whether reranking was applied
+                if args.rerank_method == "individual":
+                    print(f"Reciprocal Rank Fusion Results for '{query}' (k={args.k}):\n")
+                else:
+                    print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
                 for rank, (doc_id, scores) in enumerate(results, start=1):
                     # Find document by id
@@ -562,11 +573,12 @@ Score:"""
                         
                         # Print formatted output
                         print(f"{rank}. {title}")
-                        print(f"   RRF Score: {scores['rrf']:.3f}")
                         
-                        # Show LLM score if reranked
+                        # Show rerank score first if reranked
                         if 'llm_score' in scores:
-                            print(f"   LLM Score: {scores['llm_score']:.1f}/10")
+                            print(f"   Rerank Score: {scores['llm_score']:.3f}/10")
+                        
+                        print(f"   RRF Score: {scores['rrf']:.3f}")
                         
                         print(f"   BM25 Rank: {scores['bm25_rank']}, Semantic Rank: {scores['semantic_rank']}")
                         print(f"   {description}\n")
