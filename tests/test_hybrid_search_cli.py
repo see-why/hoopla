@@ -1737,7 +1737,7 @@ class TestRRFSearchReranking:
         assert len(stdout) > 0
         
         # Should show reranking message
-        assert "Reranking top 3 results using individual method" in stdout
+        assert "Reranking" in stdout and "results to return top 3" in stdout
         
         # Should have results
         assert "Reciprocal Rank Fusion Results" in stdout
@@ -1749,7 +1749,7 @@ class TestRRFSearchReranking:
         assert code == 0
         
         # Should have reranking message
-        assert "Reranking top 2 results using individual method" in stdout
+        assert "Reranking" in stdout and "results to return top 2" in stdout
         
         # Should have RRF results header
         assert "Reciprocal Rank Fusion Results for 'comedy'" in stdout
@@ -1787,7 +1787,7 @@ class TestRRFSearchReranking:
         stdout, stderr, code = run_rrf_search_with_rerank("thriller", "individual", limit=5)
         
         assert code == 0
-        assert "Reranking top 5 results using individual method" in stdout
+        assert "Reranking" in stdout and "results to return top 5" in stdout
 
     def test_rerank_individual_with_different_k_values(self):
         """Test --rerank-method individual works with different k parameter values."""
@@ -1795,7 +1795,7 @@ class TestRRFSearchReranking:
         
         assert code == 0
         assert "k=30" in stdout
-        assert "Reranking top 2 results using individual method" in stdout
+        assert "Reranking" in stdout and "results to return top 2" in stdout
 
     def test_rerank_individual_score_format(self):
         """Test that rerank scores are formatted correctly (X.XXX/10)."""
