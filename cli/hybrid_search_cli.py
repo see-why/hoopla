@@ -667,7 +667,8 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
                             ranked_ids = json.loads(response_text)
                         except json.JSONDecodeError:
                             # Try to extract JSON from the response if it has extra text
-                            match = re.search(r'\[(\s*\d+\s*(?:,\s*\d+\s*)*)\]', response_text)
+                            # Pattern handles both empty arrays [] and arrays with elements [1, 2, 3]
+                            match = re.search(r'\[\s*(\d+\s*(?:,\s*\d+\s*)*)?\s*\]', response_text)
                             if match:
                                 ranked_ids = json.loads(match.group(0))
                             else:
