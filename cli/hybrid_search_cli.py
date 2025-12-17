@@ -619,12 +619,22 @@ Score:"""
                 
                 async def batch_rerank():
                     """Perform batch reranking with a single LLM call."""
-                    # Build document list string
+                    # Build document list string and track missing documents
                     doc_list_parts = []
+                    missing_docs = []
+                    valid_doc_ids = []
+                    
                     for doc_id, scores in results:
                         doc = next((d for d in docs if d.get("id") == doc_id), None)
                         if doc:
                             doc_list_parts.append(f"{doc_id}. {doc.get('title', '')} - {doc.get('document', '')}")
+                            valid_doc_ids.append(doc_id)
+                        else:
+                            missing_docs.append(doc_id)
+                    
+                    # Warn about missing documents
+                    if missing_docs:
+                        print(f"Warning: {len(missing_docs)} document(s) not found in dataset (IDs: {missing_docs}), excluding from reranking", file=sys.stderr)
                     
                     doc_list_str = "\n".join(doc_list_parts)
                     
@@ -667,17 +677,39 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
                         # Create a mapping of doc_id to new rank
                         rank_map = {doc_id: idx + 1 for idx, doc_id in enumerate(ranked_ids)}
                         
-                        # Add rerank position to results
+                        # Check if LLM missed any documents
+                        ranked_set = set(ranked_ids)
+                        valid_set = set(valid_doc_ids)
+                        unranked_ids = valid_set - ranked_set
+                        
+                        if unranked_ids:
+                            print(f"Warning: LLM did not rank {len(unranked_ids)} document(s) (IDs: {sorted(unranked_ids)}), placing them at the end", file=sys.stderr)
+                        
+                        # Add rerank position to ranked results
                         reranked_results = []
+                        unranked_results = []
+                        
                         for doc_id, scores in results:
                             if doc_id in rank_map:
                                 reranked_results.append((doc_id, {
                                     **scores,
                                     'rerank_position': rank_map[doc_id]
                                 }))
+                            elif doc_id in valid_doc_ids:
+                                # Document was valid but not ranked by LLM - add to end
+                                unranked_results.append((doc_id, scores))
                         
-                        # Sort by rerank position and return
+                        # Sort ranked results by rerank position
                         reranked_results.sort(key=lambda x: x[1]['rerank_position'])
+                        
+                        # Append unranked results at the end (preserve original RRF order)
+                        for doc_id, scores in unranked_results:
+                            reranked_results.append((doc_id, {
+                                **scores,
+                                'rerank_position': None  # Indicate not ranked by LLM
+                            }))
+                        
+                        # Return top limit results
                         return reranked_results[:args.limit]
                     
                     except Exception as e:
@@ -721,7 +753,10 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
                             print(f"   Rerank Score: {scores['llm_score']:.3f}/10")
                         # Show rerank rank if batch reranked
                         elif 'rerank_position' in scores:
-                            print(f"   Rerank Rank: {scores['rerank_position']}")
+                            if scores['rerank_position'] is not None:
+                                print(f"   Rerank Rank: {scores['rerank_position']}")
+                            else:
+                                print(f"   Rerank Rank: (not ranked by LLM)")
                         
                         print(f"   RRF Score: {scores['rrf']:.3f}")
                         
