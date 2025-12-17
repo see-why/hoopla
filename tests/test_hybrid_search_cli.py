@@ -1876,3 +1876,186 @@ class TestRRFSearchReranking:
         # Either way, should not crash
         assert code == 0 or "Warning:" in stderr
 
+
+class TestRRFSearchBatchReranking:
+    """Tests for the --rerank-method batch functionality in rrf-search command."""
+
+    def test_rerank_batch_basic_functionality(self):
+        """Test basic batch reranking functionality."""
+        stdout, stderr, code = run_rrf_search_with_rerank("bear movie", "batch", limit=3)
+        
+        assert code == 0
+        # Should have output
+        assert len(stdout) > 0
+        
+        # Should show reranking message
+        assert "Reranking" in stdout and "results to return top 3" in stdout
+        
+        # Should have results with batch reranking header
+        assert "LLM Reranked Results" in stdout and "Batch Reranking" in stdout
+
+    def test_rerank_batch_output_format(self):
+        """Test that batch reranking shows proper output format."""
+        stdout, stderr, code = run_rrf_search_with_rerank("comedy", "batch", limit=2)
+        
+        assert code == 0
+        
+        # Should have reranking message
+        assert "Reranking" in stdout and "results to return top 2" in stdout
+        
+        # Should have LLM batch reranking results header
+        assert "LLM Reranked Results" in stdout and "Batch Reranking" in stdout and "for 'comedy'" in stdout
+        
+        # Should show Rerank Rank
+        assert "Rerank Rank:" in stdout
+        
+        # Should show RRF Score
+        assert "RRF Score:" in stdout
+
+    def test_rerank_batch_missing_api_key(self):
+        """Test --rerank-method batch when GEMINI_API_KEY is not set."""
+        import os
+        
+        # Skip this test if .env file exists with API key
+        dotenv_path = PROJECT_ROOT / ".env"
+        if dotenv_path.exists():
+            with open(dotenv_path) as f:
+                if "GEMINI_API_KEY" in f.read():
+                    pytest.skip("Skipping test - GEMINI_API_KEY exists in .env file")
+        
+        # Create minimal environment without GEMINI_API_KEY
+        env = {"PATH": os.environ.get("PATH", "")}
+        
+        stdout, stderr, code = run_rrf_search_with_rerank("action", "batch", limit=2, env=env)
+        
+        # Should exit with error code 1 when API key is missing
+        assert code == 1
+        
+        # Should have error message about missing API key
+        assert "GEMINI_API_KEY" in stderr
+
+    def test_rerank_batch_with_different_limits(self):
+        """Test --rerank-method batch works with different limit values."""
+        stdout, stderr, code = run_rrf_search_with_rerank("thriller", "batch", limit=5)
+        
+        assert code == 0
+        assert "Reranking" in stdout and "results to return top 5" in stdout
+
+    def test_rerank_batch_with_different_k_values(self):
+        """Test --rerank-method batch works with different k parameter values."""
+        stdout, stderr, code = run_rrf_search_with_rerank("adventure", "batch", k=30, limit=2)
+        
+        assert code == 0
+        assert "k=30" in stdout
+        assert "Reranking" in stdout and "results to return top 2" in stdout
+
+    def test_rerank_batch_rank_format(self):
+        """Test that rerank ranks are shown correctly (integers)."""
+        stdout, stderr, code = run_rrf_search_with_rerank("horror", "batch", limit=2)
+        
+        assert code == 0
+        
+        # Look for rerank rank in output
+        if "Rerank Rank:" in stdout:
+            # Should show integer ranks like 1, 2, etc.
+            lines = stdout.split('\n')
+            rank_count = 0
+            for line in lines:
+                if "Rerank Rank:" in line:
+                    rank_count += 1
+                    # Should contain a number (either digit or "(not ranked by LLM)")
+                    assert any(char.isdigit() for char in line) or "(not ranked by LLM)" in line
+            
+            # Should have at least some ranks
+            assert rank_count > 0
+
+    def test_rerank_batch_gathers_more_results(self):
+        """Test that batch reranking gathers 5x more results initially."""
+        # This test verifies the behavior indirectly by checking that reranking produces results
+        # In practice, with limit=2, it should gather 10 results to rerank
+        stdout, stderr, code = run_rrf_search_with_rerank("family", "batch", limit=2)
+        
+        assert code == 0
+        # Should have reranked results
+        assert "Rerank Rank:" in stdout
+        
+        # Count the number of results shown (should be 2)
+        result_count = stdout.count("Rerank Rank:")
+        assert result_count <= 2  # Should show at most the limit
+
+    def test_rerank_batch_preserves_search_functionality(self):
+        """Test that batch reranking doesn't break normal RRF search."""
+        # Run search with batch reranking
+        stdout_reranked, stderr_reranked, code_reranked = run_rrf_search_with_rerank(
+            "animation", "batch", limit=3
+        )
+        
+        # Run search without reranking
+        stdout_normal, stderr_normal, code_normal = run_rrf_search(
+            "animation", limit=3
+        )
+        
+        # Both should succeed
+        assert code_reranked == 0
+        assert code_normal == 0
+        
+        # Both should have results
+        assert "results for query:" in stdout_reranked.lower() or "LLM Reranked Results" in stdout_reranked
+        assert "results for query:" in stdout_normal.lower()
+
+    def test_rerank_batch_handles_api_errors(self):
+        """Test that batch reranking handles API errors gracefully."""
+        # This test verifies the feature continues even if the API call fails
+        # We can't easily simulate API failures, but we can verify the feature works end-to-end
+        stdout, stderr, code = run_rrf_search_with_rerank("mystery", "batch", limit=2)
+        
+        # Should complete successfully or show warnings but still return results
+        # Either way, should not crash
+        assert code == 0 or "Warning:" in stderr
+
+    def test_rerank_batch_single_api_call(self):
+        """Test that batch reranking is faster than individual (single API call)."""
+        # This is more of a conceptual test - batch should complete quickly
+        # We can't measure exact timing reliably in tests, but we verify it works
+        import time
+        
+        start = time.time()
+        stdout, stderr, code = run_rrf_search_with_rerank("adventure", "batch", limit=3)
+        batch_time = time.time() - start
+        
+        assert code == 0
+        # Batch should complete reasonably fast (less than 30 seconds for 3 results)
+        assert batch_time < 30
+        
+        # Should show batch reranking was applied
+        assert "Batch Reranking" in stdout
+
+    def test_rerank_batch_vs_individual_headers(self):
+        """Test that batch and individual methods have different, clear headers."""
+        stdout_batch, stderr_batch, code_batch = run_rrf_search_with_rerank("drama", "batch", limit=2)
+        stdout_individual, stderr_individual, code_individual = run_rrf_search_with_rerank("drama", "individual", limit=2)
+        
+        assert code_batch == 0
+        assert code_individual == 0
+        
+        # Batch should have "Batch Reranking" in header
+        assert "Batch Reranking" in stdout_batch
+        assert "Individual Reranking" not in stdout_batch
+        
+        # Individual should have "Individual Reranking" in header
+        assert "Individual Reranking" in stdout_individual
+        assert "Batch Reranking" not in stdout_individual
+
+    def test_rerank_batch_with_custom_multiplier(self):
+        """Test that batch reranking works with custom --rerank-multiplier."""
+        venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else "python3"
+        
+        cmd = [python_exec, "cli/hybrid_search_cli.py", "rrf-search", "action", 
+               "--rerank-method", "batch", "--limit", "2", "--rerank-multiplier", "3"]
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
+        
+        assert result.returncode == 0
+        # Should gather 2 * 3 = 6 results initially
+        assert "Reranking 6 results to return top 2" in result.stdout
+        assert "Batch Reranking" in result.stdout

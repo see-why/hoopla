@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import os
 import re
 import sys
@@ -311,7 +312,7 @@ def main() -> None:
     rrf_search_parser.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual"],
+        choices=["individual", "batch"],
         help="Reranking method to apply after RRF search",
     )
     rrf_search_parser.add_argument(
@@ -513,7 +514,7 @@ Expanded terms:"""
             
             # Perform RRF search
             # If reranking, gather more results initially
-            search_limit = args.limit * args.rerank_multiplier if args.rerank_method == "individual" else args.limit
+            search_limit = args.limit * args.rerank_multiplier if args.rerank_method else args.limit
             results = hs.rrf_search(query, args.k, search_limit)
             
             # Apply individual reranking if specified
@@ -610,6 +611,123 @@ Score:"""
                 reranked_results.sort(key=lambda x: x[1]['llm_score'], reverse=True)
                 results = reranked_results[:args.limit]
             
+            # Apply batch reranking if specified
+            elif args.rerank_method == "batch" and results:
+                client = get_gemini_client()
+                
+                print(f"Reranking {len(results)} results to return top {args.limit}...")
+                
+                async def batch_rerank():
+                    """Perform batch reranking with a single LLM call."""
+                    # Build document list string and track missing documents
+                    doc_list_parts = []
+                    missing_docs = []
+                    valid_doc_ids = []
+                    
+                    for doc_id, scores in results:
+                        doc = next((d for d in docs if d.get("id") == doc_id), None)
+                        if doc:
+                            doc_list_parts.append(f"{doc_id}. {doc.get('title', '')} - {doc.get('document', '')}")
+                            valid_doc_ids.append(doc_id)
+                        else:
+                            missing_docs.append(doc_id)
+                    
+                    # Warn about missing documents
+                    if missing_docs:
+                        print(f"Warning: {len(missing_docs)} document(s) not found in dataset (IDs: {missing_docs}), excluding from reranking", file=sys.stderr)
+                    
+                    doc_list_str = "\n".join(doc_list_parts)
+                    
+                    prompt = f"""Rank these movies by relevance to the search query.
+
+Query: "{query}"
+
+Movies:
+{doc_list_str}
+
+Return ONLY the IDs in order of relevance (best match first). Return a valid JSON list, nothing else. For example:
+
+[75, 12, 34, 2, 1]
+"""
+                    
+                    try:
+                        # Run the synchronous API call in a thread pool
+                        loop = asyncio.get_event_loop()
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: client.models.generate_content(
+                                model="gemini-2.0-flash-001",
+                                contents=prompt
+                            )
+                        )
+                        response_text = response.text.strip()
+                        
+                        # Parse JSON response
+                        try:
+                            ranked_ids = json.loads(response_text)
+                        except json.JSONDecodeError:
+                            # Try to extract JSON from the response if it has extra text
+                            # Pattern handles both empty arrays [] and arrays with elements [1, 2, 3]
+                            match = re.search(r'\[\s*(\d+\s*(?:,\s*\d+\s*)*)?\s*\]', response_text)
+                            if match:
+                                ranked_ids = json.loads(match.group(0))
+                            else:
+                                print(f"Warning: Could not parse JSON from response: {response_text}", file=sys.stderr)
+                                return None
+                        
+                        # Validate that ranked_ids is a list
+                        if not isinstance(ranked_ids, list):
+                            print(f"Warning: LLM returned valid JSON but not a list: {ranked_ids}", file=sys.stderr)
+                            return None
+                        
+                        # Create a mapping of doc_id to new rank
+                        rank_map = {doc_id: idx + 1 for idx, doc_id in enumerate(ranked_ids)}
+                        
+                        # Check if LLM missed any documents
+                        ranked_set = set(ranked_ids)
+                        valid_set = set(valid_doc_ids)
+                        unranked_ids = valid_set - ranked_set
+                        
+                        if unranked_ids:
+                            print(f"Warning: LLM did not rank {len(unranked_ids)} document(s) (IDs: {sorted(unranked_ids)}), placing them at the end", file=sys.stderr)
+                        
+                        # Add rerank position to ranked results
+                        reranked_results = []
+                        unranked_results = []
+                        
+                        for doc_id, scores in results:
+                            if doc_id in rank_map:
+                                reranked_results.append((doc_id, {
+                                    **scores,
+                                    'rerank_position': rank_map[doc_id]
+                                }))
+                            elif doc_id in valid_doc_ids:
+                                # Document was valid but not ranked by LLM - add to end
+                                unranked_results.append((doc_id, scores))
+                        
+                        # Sort ranked results by rerank position
+                        reranked_results.sort(key=lambda x: x[1]['rerank_position'])
+                        
+                        # Append unranked results at the end (preserve original RRF order)
+                        for doc_id, scores in unranked_results:
+                            reranked_results.append((doc_id, {
+                                **scores,
+                                'rerank_position': None  # Indicate not ranked by LLM
+                            }))
+                        
+                        # Return top limit results
+                        return reranked_results[:args.limit]
+                    
+                    except Exception as e:
+                        print(f"Warning: Batch reranking failed: {e}", file=sys.stderr)
+                        return None
+                
+                # Run async batch reranking
+                reranked_results = asyncio.run(batch_rerank())
+                
+                if reranked_results is not None:
+                    results = reranked_results
+            
             # Print results with rank information
             if not results:
                 print("No results found.")
@@ -617,6 +735,8 @@ Score:"""
                 # Customize header based on whether reranking was applied
                 if args.rerank_method == "individual":
                     print(f"LLM Reranked Results (RRF + Individual Reranking) for '{query}' (k={args.k}):\n")
+                elif args.rerank_method == "batch":
+                    print(f"LLM Reranked Results (RRF + Batch Reranking) for '{query}' (k={args.k}):\n")
                 else:
                     print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
@@ -634,9 +754,15 @@ Score:"""
                         # Print formatted output
                         print(f"{rank}. {title}")
                         
-                        # Show rerank score first if reranked
+                        # Show rerank score first if individually reranked
                         if 'llm_score' in scores:
                             print(f"   Rerank Score: {scores['llm_score']:.3f}/10")
+                        # Show rerank rank if batch reranked
+                        elif 'rerank_position' in scores:
+                            if scores['rerank_position'] is not None:
+                                print(f"   Rerank Rank: {scores['rerank_position']}")
+                            else:
+                                print(f"   Rerank Rank: (not ranked by LLM)")
                         
                         print(f"   RRF Score: {scores['rrf']:.3f}")
                         
