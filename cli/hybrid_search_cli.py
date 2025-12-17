@@ -674,6 +674,11 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
                                 print(f"Warning: Could not parse JSON from response: {response_text}", file=sys.stderr)
                                 return None
                         
+                        # Validate that ranked_ids is a list
+                        if not isinstance(ranked_ids, list):
+                            print(f"Warning: LLM returned valid JSON but not a list: {ranked_ids}", file=sys.stderr)
+                            return None
+                        
                         # Create a mapping of doc_id to new rank
                         rank_map = {doc_id: idx + 1 for idx, doc_id in enumerate(ranked_ids)}
                         
