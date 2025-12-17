@@ -698,7 +698,7 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
                 if args.rerank_method == "individual":
                     print(f"LLM Reranked Results (RRF + Individual Reranking) for '{query}' (k={args.k}):\n")
                 elif args.rerank_method == "batch":
-                    print(f"Reciprocal Rank Fusion Results for '{query}' (k={args.k}):\n")
+                    print(f"LLM Reranked Results (RRF + Batch Reranking) for '{query}' (k={args.k}):\n")
                 else:
                     print(f"Top {len(results)} results for query: '{query}' (k={args.k}):\n")
                 
