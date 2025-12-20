@@ -28,10 +28,17 @@ def main():
         default="data/golden_dataset.json",
         help="Path to the golden dataset JSON file. Default: data/golden_dataset.json",
     )
+    parser.add_argument(
+        "--rrf-k",
+        type=int,
+        default=60,
+        help="RRF constant parameter for Reciprocal Rank Fusion. Default: 60",
+    )
 
     args = parser.parse_args()
     limit = args.limit
     golden_dataset_path = args.golden_dataset
+    rrf_k = args.rrf_k
 
     # Load golden dataset
     try:
@@ -63,8 +70,8 @@ def main():
         query = test_case.get("query", "")
         relevant_docs = test_case.get("relevant_docs", [])
         
-        # Run RRF search with k=60 and limit from args
-        results = hs.rrf_search(query, k=60, limit=limit)
+        # Run RRF search with configurable k parameter and limit from args
+        results = hs.rrf_search(query, k=rrf_k, limit=limit)
         
         # Extract document titles from results
         retrieved_titles = []
