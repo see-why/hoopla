@@ -77,9 +77,13 @@ def main():
         relevant_retrieved = sum(1 for title in retrieved_titles if title in relevant_docs)
         precision = relevant_retrieved / len(retrieved_titles) if retrieved_titles else 0.0
         
+        # Calculate recall: how many of the relevant documents were retrieved
+        recall = relevant_retrieved / len(relevant_docs) if relevant_docs else 0.0
+        
         # Print results
         print(f"- Query: {query}")
         print(f"  - Precision@{limit}: {precision:.4f}")
+        print(f"  - Recall@{limit}: {recall:.4f}")
         print(f"  - Retrieved: {', '.join(retrieved_titles)}")
         print(f"  - Relevant: {', '.join(relevant_docs)}")
         print()
