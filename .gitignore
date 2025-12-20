@@ -19,3 +19,4 @@ cache/movie_embeddings.npy
 cache/chunk_metadata.json
 cache/chunk_embeddings.npy
 .env
+data/golden_dataset.json
