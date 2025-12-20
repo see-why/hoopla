@@ -37,7 +37,7 @@ def main():
         "--limit",
         type=int,
         default=10,
-        help="Number of results to evaluate (k for precision@k, recall@k). Default: 10",
+        help="Number of results to evaluate (k for precision@k, recall@k)",
     )
     parser.add_argument(
         "--golden-dataset",
