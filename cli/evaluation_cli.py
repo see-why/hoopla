@@ -15,6 +15,25 @@ except ImportError:
 
 
 def main():
+    """
+        Search Evaluation CLI entry point.
+        Purpose:
+        - Runs Reciprocal Rank Fusion (RRF) hybrid search over test cases defined in a golden dataset and reports precision@k and recall@k.
+        Arguments:
+        - --limit (int): Number of results to evaluate per query (k in precision@k and recall@k). Default: 5.
+        - --golden-dataset (str): Path to the golden dataset JSON file describing evaluation test cases. Default: data/golden_dataset.json.
+        - --rrf-k (int): RRF constant parameter controlling fusion sensitivity. Default: 60.
+        Behavior:
+        - Loads the movies dataset via `load_movies_dataset()`.
+        - Initializes `HybridSearch` with loaded documents.
+        - For each test case, runs `HybridSearch.rrf_search(query, k=rrf_k, limit=limit)`.
+        - Computes precision@k and recall@k and prints per-query metrics with retrieved and relevant titles.
+        Expected golden dataset JSON structure:
+        {"test_cases": [{"query": "string", "relevant_docs": ["Title 1", "Title 2"]}]}
+        Notes:
+        - `relevant_docs` should contain exact titles present in the movies dataset (matching the "title" field). Title matching is exact string equality.
+        - Exit code is 1 when the golden dataset cannot be read or parsed; 0 otherwise.
+    """
     parser = argparse.ArgumentParser(description="Search Evaluation CLI")
     parser.add_argument(
         "--limit",
