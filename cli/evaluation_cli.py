@@ -22,12 +22,18 @@ def main():
         default=5,
         help="Number of results to evaluate (k for precision@k, recall@k)",
     )
+    parser.add_argument(
+        "--golden-dataset",
+        type=str,
+        default="data/golden_dataset.json",
+        help="Path to the golden dataset JSON file. Default: data/golden_dataset.json",
+    )
 
     args = parser.parse_args()
     limit = args.limit
+    golden_dataset_path = args.golden_dataset
 
     # Load golden dataset
-    golden_dataset_path = "data/golden_dataset.json"
     try:
         with open(golden_dataset_path, "r") as f:
             golden_data = json.load(f)
