@@ -58,7 +58,7 @@ def main():
         sys.exit(1)
     
     # Initialize hybrid search
-    hs = HybridSearch(docs)
+    hybrid_search = HybridSearch(docs)
     
     # Run evaluation for each test case
     test_cases = golden_data.get("test_cases", [])
@@ -71,7 +71,7 @@ def main():
         relevant_docs = test_case.get("relevant_docs", [])
         
         # Run RRF search with configurable k parameter and limit from args
-        results = hs.rrf_search(query, k=rrf_k, limit=limit)
+        results = hybrid_search.rrf_search(query, k=rrf_k, limit=limit)
         
         # Extract document titles from results
         retrieved_titles = []
