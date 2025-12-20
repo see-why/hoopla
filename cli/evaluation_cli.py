@@ -50,11 +50,12 @@ def main():
     # Run evaluation for each test case
     test_cases = golden_data.get("test_cases", [])
     
+    # Print header with k value
+    print(f"k={limit}\n")
+    
     for idx, test_case in enumerate(test_cases, 1):
         query = test_case.get("query", "")
         relevant_docs = test_case.get("relevant_docs", [])
-        
-        print(f"Test case {idx}: '{query}'")
         
         # Run RRF search with k=60 and limit from args
         results = hs.rrf_search(query, k=60, limit=limit)
@@ -66,8 +67,15 @@ def main():
             if doc:
                 retrieved_titles.append(doc.get("title", ""))
         
-        print(f"  Retrieved {len(retrieved_titles)} documents")
-        print(f"  Expected {len(relevant_docs)} relevant documents")
+        # Calculate precision: how many of the retrieved documents are relevant
+        relevant_retrieved = sum(1 for title in retrieved_titles if title in relevant_docs)
+        precision = relevant_retrieved / len(retrieved_titles) if retrieved_titles else 0.0
+        
+        # Print results
+        print(f"- Query: {query}")
+        print(f"  - Precision@{limit}: {precision:.4f}")
+        print(f"  - Retrieved: {', '.join(retrieved_titles)}")
+        print(f"  - Relevant: {', '.join(relevant_docs)}")
         print()
 
 
