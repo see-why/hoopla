@@ -59,7 +59,7 @@ def main():
     # Print header with k value
     print(f"k={limit}\n")
     
-    for idx, test_case in enumerate(test_cases, 1):
+    for _, test_case in enumerate(test_cases, 1):
         query = test_case.get("query", "")
         relevant_docs = test_case.get("relevant_docs", [])
         
