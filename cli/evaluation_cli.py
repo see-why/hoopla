@@ -60,6 +60,9 @@ def main():
     # Initialize hybrid search
     hybrid_search = HybridSearch(docs)
     
+    # Create document lookup dictionary for O(1) access
+    docs_by_id = {doc.get("id"): doc for doc in docs if doc.get("id") is not None}
+    
     # Run evaluation for each test case
     test_cases = golden_data.get("test_cases", [])
     
@@ -76,7 +79,7 @@ def main():
         # Extract document titles from results
         retrieved_titles = []
         for doc_id, scores in results:
-            doc = next((d for d in docs if d.get("id") == doc_id), None)
+            doc = docs_by_id.get(doc_id)
             if doc:
                 retrieved_titles.append(doc.get("title", ""))
         
