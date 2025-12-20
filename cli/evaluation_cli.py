@@ -18,7 +18,7 @@ def main():
         Purpose:
         - Runs Reciprocal Rank Fusion (RRF) hybrid search over test cases defined in a golden dataset and reports precision@k and recall@k.
         Arguments:
-        - --limit (int): Number of results to evaluate per query (k in precision@k and recall@k). Default: 5.
+        - --limit (int): Number of results to evaluate per query (k in precision@k and recall@k). Default: 10.
         - --golden-dataset (str): Path to the golden dataset JSON file describing evaluation test cases. Default: data/golden_dataset.json.
         - --rrf-k (int): RRF constant parameter controlling fusion sensitivity. Default: 60.
         Behavior:
@@ -31,13 +31,13 @@ def main():
         Notes:
         - `relevant_docs` should contain exact titles present in the movies dataset (matching the "title" field). Title matching is exact string equality.
         - Exit code is 1 when the golden dataset cannot be read or parsed; 0 otherwise.
-    """
+        """
     parser = argparse.ArgumentParser(description="Search Evaluation CLI")
     parser.add_argument(
         "--limit",
         type=int,
-        default=5,
-        help="Number of results to evaluate (k for precision@k, recall@k)",
+        default=10,
+        help="Number of results to evaluate (k for precision@k, recall@k). Default: 10",
     )
     parser.add_argument(
         "--golden-dataset",
