@@ -5,12 +5,10 @@ import json
 import sys
 
 try:
-    from cli.keyword_search_cli import InvertedIndex
-    from cli.lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+    from cli.lib.semantic_search import load_movies_dataset
     from cli.hybrid_search_cli import HybridSearch
 except ImportError:
-    from keyword_search_cli import InvertedIndex
-    from lib.semantic_search import ChunkedSemanticSearch, load_movies_dataset
+    from lib.semantic_search import load_movies_dataset
     from hybrid_search_cli import HybridSearch
 
 
