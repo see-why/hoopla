@@ -28,13 +28,14 @@ def run_evaluation(golden_dataset_path=None, limit=None, rrf_k=None):
 
 
 def parse_metrics(output):
-    """Parse precision and recall metrics from output."""
+    """Parse precision, recall, and F1 score metrics from output."""
     metrics = []
     lines = output.strip().split("\n")
     
     current_query = None
     current_precision = None
     current_recall = None
+    current_f1 = None
     
     for line in lines:
         line = line.strip()
@@ -48,16 +49,22 @@ def parse_metrics(output):
             parts = line.split(":")
             if len(parts) == 2:
                 current_recall = float(parts[1].strip())
-                # When we have all three, save the metric
-                if current_query and current_precision is not None and current_recall is not None:
+        elif "- F1 Score:" in line:
+            parts = line.split(":")
+            if len(parts) == 2:
+                current_f1 = float(parts[1].strip())
+                # When we have all four, save the metric
+                if current_query and current_precision is not None and current_recall is not None and current_f1 is not None:
                     metrics.append({
                         "query": current_query,
                         "precision": current_precision,
-                        "recall": current_recall
+                        "recall": current_recall,
+                        "f1_score": current_f1
                     })
                     current_query = None
                     current_precision = None
                     current_recall = None
+                    current_f1 = None
     
     return metrics
 
