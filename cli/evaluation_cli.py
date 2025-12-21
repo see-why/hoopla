@@ -18,7 +18,7 @@ def main():
         Purpose:
         - Runs Reciprocal Rank Fusion (RRF) hybrid search over test cases defined in a golden dataset and reports precision@k and recall@k.
         Arguments:
-        - --limit (int): Number of results to evaluate per query (k in precision@k and recall@k). Default: 10.
+        - --limit (int): Number of results to evaluate per query (k in precision@k and recall@k). Default: 4.
         - --golden-dataset (str): Path to the golden dataset JSON file describing evaluation test cases. Default: data/golden_dataset.json.
         - --rrf-k (int): RRF constant parameter controlling fusion sensitivity. Default: 60.
         Behavior:
@@ -36,7 +36,7 @@ def main():
     parser.add_argument(
         "--limit",
         type=int,
-        default=10,
+        default=4,
         help="Number of results to evaluate (k for precision@k, recall@k)",
     )
     parser.add_argument(
@@ -107,10 +107,14 @@ def main():
         # Calculate recall: how many of the relevant documents were retrieved
         recall = relevant_retrieved / len(relevant_docs) if relevant_docs else 0.0
         
+        # Calculate F1 score: harmonic mean of precision and recall
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        
         # Print results
         print(f"- Query: {query}")
         print(f"  - Precision@{limit}: {precision:.4f}")
         print(f"  - Recall@{limit}: {recall:.4f}")
+        print(f"  - F1 Score: {f1_score:.4f}")
         print(f"  - Retrieved: {', '.join(retrieved_titles)}")
         print(f"  - Relevant: {', '.join(relevant_docs)}")
         print()
