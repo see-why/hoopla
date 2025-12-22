@@ -19,12 +19,16 @@ def main():
         "rag", help="Perform RAG (search + generate answer)"
     )
     rag_parser.add_argument("query", type=str, help="Search query for RAG")
+    rag_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
+    rag_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and use for RAG. Default: 5")
 
     args = parser.parse_args()
 
     match args.command:
         case "rag":
             query = args.query
+            k = args.k
+            limit = args.limit
             
             # Load movies dataset
             docs, exc, movies_path = load_movies_dataset()
@@ -34,7 +38,7 @@ def main():
             
             # Initialize hybrid search and perform RRF search
             hybrid_search = HybridSearch(docs)
-            results = hybrid_search.rrf_search(query, k=60, limit=5)
+            results = hybrid_search.rrf_search(query, k=k, limit=limit)
             
             # Format search results for the LLM prompt
             formatted_docs = []
