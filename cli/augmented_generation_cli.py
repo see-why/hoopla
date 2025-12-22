@@ -173,14 +173,17 @@ Provide a comprehensive answer that addresses the query:"""
             docs_string = "\n\n".join(formatted_docs)
             
             # Build the summarization prompt
-            prompt = f"""Summarize the following documents that are related to the user's query. Provide a concise overview suitable for Hoopla users. Hoopla is a movie streaming service.
+            prompt = f"""Provide information useful to this query by synthesizing information from multiple search results in detail.
+The goal is to provide comprehensive information so that users know what their options are.
+Your response should be information-dense and concise, with several key pieces of information about the genre, plot, etc. of each movie.
+This should be tailored to Hoopla users. Hoopla is a movie streaming service.
 
 Query: {query}
 
-Documents:
+Search Results:
 {docs_string}
 
-Provide a brief, coherent summary of these documents:"""
+Provide a comprehensive 3–4 sentence answer that combines information from multiple sources:"""
             
             try:
                 client = get_gemini_client()
