@@ -12,6 +12,47 @@ except ImportError:
 
 
 def main():
+    """
+    Retrieval Augmented Generation (RAG) CLI entry point.
+
+    Purpose:
+    - Retrieves relevant movie documents using RRF hybrid search.
+    - Generates contextual answers using Gemini API based on retrieved documents.
+    - Combines document retrieval with LLM generation to provide informed responses.
+
+    Arguments:
+    - query (str): The user's question or request for movie recommendations/information.
+    - --k (int): RRF constant parameter controlling fusion sensitivity. Default: 60.
+    - --limit (int): Number of movie documents to retrieve for RAG context. Default: 5.
+
+    Behavior:
+    - Loads the movies dataset via `load_movies_dataset()`.
+    - Initializes `HybridSearch` with loaded documents.
+    - Performs RRF search with configurable k and limit parameters.
+    - Exits with error code 1 if no search results are found.
+    - Formats retrieved documents and sends them to Gemini API with user query.
+    - Generates response tailored for Hoopla movie streaming service users.
+
+    Output Format:
+    Search Results:
+      - <Movie Title 1>
+      - <Movie Title 2>
+      ...
+
+    RAG Response:
+    <LLM-generated answer based on retrieved documents>
+
+    Dependencies:
+    - GEMINI_API_KEY environment variable must be set for LLM generation.
+    - load_movies_dataset() from lib.semantic_search for movie data.
+    - HybridSearch from hybrid_search_cli for RRF search functionality.
+    - Gemini 2.0 Flash model via Google genai client.
+
+    Notes:
+    - Search results are limited to movie titles and descriptions.
+    - LLM response is generated within context of retrieved documents only.
+    - Exit code is 1 when search returns no results or API call fails; 0 on success.
+    """
     parser = argparse.ArgumentParser(description="Retrieval Augmented Generation CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
