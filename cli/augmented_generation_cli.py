@@ -40,6 +40,11 @@ def main():
             hybrid_search = HybridSearch(docs)
             results = hybrid_search.rrf_search(query, k=k, limit=limit)
             
+            # Handle case when no results are found
+            if not results:
+                print("No results found for the query. Unable to generate RAG response without context.", file=sys.stderr)
+                sys.exit(1)
+            
             # Format search results for the LLM prompt
             formatted_docs = []
             result_titles = []
