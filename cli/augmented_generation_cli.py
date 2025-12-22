@@ -11,6 +11,101 @@ except ImportError:
     from hybrid_search_cli import HybridSearch, get_gemini_client
 
 
+def load_dataset_and_search(query, k, limit):
+    """
+    Load the movies dataset and perform RRF hybrid search.
+    
+    Args:
+        query: The search query string
+        k: RRF constant parameter
+        limit: Number of results to retrieve
+        
+    Returns:
+        tuple: (docs, results) where docs is the full dataset and results are search results
+        
+    Exits:
+        Exits with code 1 if dataset loading fails or no results found
+    """
+    # Load movies dataset
+    docs, exc, movies_path = load_movies_dataset()
+    if exc:
+        print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Initialize hybrid search and perform RRF search
+    hybrid_search = HybridSearch(docs)
+    results = hybrid_search.rrf_search(query, k=k, limit=limit)
+    
+    # Handle case when no results are found
+    if not results:
+        print("No results found for the query. Unable to generate response without context.", file=sys.stderr)
+        sys.exit(1)
+    
+    return docs, results
+
+
+def format_search_results(docs, results):
+    """
+    Format search results into documents and titles for display and LLM prompts.
+    
+    Args:
+        docs: Full dataset of movie documents
+        results: Search results from RRF search
+        
+    Returns:
+        tuple: (formatted_docs_string, result_titles) where formatted_docs_string 
+               is formatted for LLM prompts and result_titles is a list of titles
+    """
+    formatted_docs = []
+    result_titles = []
+    
+    for rank, (doc_id, scores) in enumerate(results, start=1):
+        doc = next((d for d in docs if d.get("id") == doc_id), None)
+        if doc:
+            title = doc.get("title", "<untitled>")
+            result_titles.append(title)
+            description = doc.get("description", "")
+            # Limit description to first 500 characters for the prompt
+            if len(description) > 500:
+                description = description[:497] + "..."
+            formatted_docs.append(f"{rank}. {title}\n{description}")
+    
+    docs_string = "\n\n".join(formatted_docs)
+    return docs_string, result_titles
+
+
+def generate_and_print_response(prompt, result_titles, response_label):
+    """
+    Generate LLM response and print formatted output.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        result_titles: List of movie titles from search results
+        response_label: Label for the response section (e.g., "RAG Response", "LLM Summary")
+        
+    Exits:
+        Exits with code 1 if LLM generation fails
+    """
+    try:
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=prompt
+        )
+        
+        # Print results and response in the requested format
+        print("Search Results:")
+        for title in result_titles:
+            print(f"  - {title}")
+        
+        print(f"\n{response_label}:")
+        print(response.text)
+    
+    except Exception as e:
+        print(f"Error generating response: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     """
     Retrieval Augmented Generation (RAG) CLI entry point.
@@ -77,36 +172,11 @@ def main():
             k = args.k
             limit = args.limit
             
-            # Load movies dataset
-            docs, exc, movies_path = load_movies_dataset()
-            if exc:
-                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
-                sys.exit(1)
+            # Load dataset and perform search
+            docs, results = load_dataset_and_search(query, k, limit)
             
-            # Initialize hybrid search and perform RRF search
-            hybrid_search = HybridSearch(docs)
-            results = hybrid_search.rrf_search(query, k=k, limit=limit)
-            
-            # Handle case when no results are found
-            if not results:
-                print("No results found for the query. Unable to generate RAG response without context.", file=sys.stderr)
-                sys.exit(1)
-            
-            # Format search results for the LLM prompt
-            formatted_docs = []
-            result_titles = []
-            for rank, (doc_id, scores) in enumerate(results, start=1):
-                doc = next((d for d in docs if d.get("id") == doc_id), None)
-                if doc:
-                    title = doc.get("title", "<untitled>")
-                    result_titles.append(title)
-                    description = doc.get("description", "")
-                    # Limit description to first 500 characters for the prompt
-                    if len(description) > 500:
-                        description = description[:497] + "..."
-                    formatted_docs.append(f"{rank}. {title}\n{description}")
-            
-            docs_string = "\n\n".join(formatted_docs)
+            # Format search results
+            docs_string, result_titles = format_search_results(docs, results)
             
             # Build the RAG prompt
             prompt = f"""Answer the question or provide information based on the provided documents. This should be tailored to Hoopla users. Hoopla is a movie streaming service.
@@ -118,59 +188,18 @@ Documents:
 
 Provide a comprehensive answer that addresses the query:"""
             
-            try:
-                client = get_gemini_client()
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash-001",
-                    contents=prompt
-                )
-                
-                # Print results and response in the requested format
-                print("Search Results:")
-                for title in result_titles:
-                    print(f"  - {title}")
-                
-                print(f"\nRAG Response:")
-                print(response.text)
-            
-            except Exception as e:
-                print(f"Error generating response: {e}", file=sys.stderr)
-                sys.exit(1)
+            # Generate and print response
+            generate_and_print_response(prompt, result_titles, "RAG Response")
         
         case "summarize":
             query = args.query
             limit = args.limit
             
-            # Load movies dataset
-            docs, exc, movies_path = load_movies_dataset()
-            if exc:
-                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
-                sys.exit(1)
+            # Load dataset and perform search
+            docs, results = load_dataset_and_search(query, k=60, limit=limit)
             
-            # Initialize hybrid search and perform RRF search
-            hybrid_search = HybridSearch(docs)
-            results = hybrid_search.rrf_search(query, k=60, limit=limit)
-            
-            # Handle case when no results are found
-            if not results:
-                print("No results found for the query. Unable to generate summary without context.", file=sys.stderr)
-                sys.exit(1)
-            
-            # Format search results for the LLM prompt
-            formatted_docs = []
-            result_titles = []
-            for rank, (doc_id, scores) in enumerate(results, start=1):
-                doc = next((d for d in docs if d.get("id") == doc_id), None)
-                if doc:
-                    title = doc.get("title", "<untitled>")
-                    result_titles.append(title)
-                    description = doc.get("description", "")
-                    # Limit description to first 500 characters for the prompt
-                    if len(description) > 500:
-                        description = description[:497] + "..."
-                    formatted_docs.append(f"{rank}. {title}\n{description}")
-            
-            docs_string = "\n\n".join(formatted_docs)
+            # Format search results
+            docs_string, result_titles = format_search_results(docs, results)
             
             # Build the summarization prompt
             prompt = f"""Provide information useful to this query by synthesizing information from multiple search results in detail.
@@ -185,24 +214,8 @@ Search Results:
 
 Provide a comprehensive 3–4 sentence answer that combines information from multiple sources:"""
             
-            try:
-                client = get_gemini_client()
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash-001",
-                    contents=prompt
-                )
-                
-                # Print results and summary in the requested format
-                print("Search Results:")
-                for title in result_titles:
-                    print(f"  - {title}")
-                
-                print(f"\nLLM Summary:")
-                print(response.text)
-            
-            except Exception as e:
-                print(f"Error generating summary: {e}", file=sys.stderr)
-                sys.exit(1)
+            # Generate and print response
+            generate_and_print_response(prompt, result_titles, "LLM Summary")
         
         case _:
             parser.print_help()
