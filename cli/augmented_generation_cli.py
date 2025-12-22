@@ -38,10 +38,12 @@ def main():
             
             # Format search results for the LLM prompt
             formatted_docs = []
+            result_titles = []
             for rank, (doc_id, scores) in enumerate(results, start=1):
                 doc = next((d for d in docs if d.get("id") == doc_id), None)
                 if doc:
                     title = doc.get("title", "<untitled>")
+                    result_titles.append(title)
                     description = doc.get("description", "")
                     # Limit description to first 500 characters for the prompt
                     if len(description) > 500:
@@ -67,6 +69,12 @@ Provide a comprehensive answer that addresses the query:"""
                     contents=prompt
                 )
                 
+                # Print results and response in the requested format
+                print("Search Results:")
+                for title in result_titles:
+                    print(f"  - {title}")
+                
+                print(f"\nRAG Response:")
                 print(response.text)
             
             except Exception as e:
