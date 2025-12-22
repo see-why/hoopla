@@ -162,6 +162,7 @@ def main():
         "summarize", help="Summarize search results"
     )
     summarize_parser.add_argument("query", type=str, help="Search query for summarization")
+    summarize_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
     summarize_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and summarize. Default: 5")
 
     args = parser.parse_args()
@@ -193,10 +194,11 @@ Provide a comprehensive answer that addresses the query:"""
         
         case "summarize":
             query = args.query
+            k = args.k
             limit = args.limit
             
             # Load dataset and perform search
-            docs, results = load_dataset_and_search(query, k=60, limit=limit)
+            docs, results = load_dataset_and_search(query, k=k, limit=limit)
             
             # Format search results
             docs_string, result_titles = format_search_results(docs, results)
