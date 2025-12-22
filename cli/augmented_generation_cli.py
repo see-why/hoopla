@@ -63,6 +63,12 @@ def main():
     rag_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
     rag_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and use for RAG. Default: 5")
 
+    summarize_parser = subparsers.add_parser(
+        "summarize", help="Summarize search results"
+    )
+    summarize_parser.add_argument("query", type=str, help="Search query for summarization")
+    summarize_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and summarize. Default: 5")
+
     args = parser.parse_args()
 
     match args.command:
@@ -129,6 +135,70 @@ Provide a comprehensive answer that addresses the query:"""
             
             except Exception as e:
                 print(f"Error generating response: {e}", file=sys.stderr)
+                sys.exit(1)
+        
+        case "summarize":
+            query = args.query
+            limit = args.limit
+            
+            # Load movies dataset
+            docs, exc, movies_path = load_movies_dataset()
+            if exc:
+                print(f"Failed to load movies file {movies_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+            
+            # Initialize hybrid search and perform RRF search
+            hybrid_search = HybridSearch(docs)
+            results = hybrid_search.rrf_search(query, k=60, limit=limit)
+            
+            # Handle case when no results are found
+            if not results:
+                print("No results found for the query. Unable to generate summary without context.", file=sys.stderr)
+                sys.exit(1)
+            
+            # Format search results for the LLM prompt
+            formatted_docs = []
+            result_titles = []
+            for rank, (doc_id, scores) in enumerate(results, start=1):
+                doc = next((d for d in docs if d.get("id") == doc_id), None)
+                if doc:
+                    title = doc.get("title", "<untitled>")
+                    result_titles.append(title)
+                    description = doc.get("description", "")
+                    # Limit description to first 500 characters for the prompt
+                    if len(description) > 500:
+                        description = description[:497] + "..."
+                    formatted_docs.append(f"{rank}. {title}\n{description}")
+            
+            docs_string = "\n\n".join(formatted_docs)
+            
+            # Build the summarization prompt
+            prompt = f"""Summarize the following documents that are related to the user's query. Provide a concise overview suitable for Hoopla users. Hoopla is a movie streaming service.
+
+Query: {query}
+
+Documents:
+{docs_string}
+
+Provide a brief, coherent summary of these documents:"""
+            
+            try:
+                client = get_gemini_client()
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash-001",
+                    contents=prompt
+                )
+                
+                # Print results and summary in the requested format
+                print("Search Results:")
+                for title in result_titles:
+                    print(f"  - {title}")
+                
+                print(f"\nSummary:")
+                print(response.text)
+            
+            except Exception as e:
+                print(f"Error generating summary: {e}", file=sys.stderr)
                 sys.exit(1)
         
         case _:
