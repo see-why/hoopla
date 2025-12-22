@@ -490,6 +490,7 @@ class TestCitationsCLI:
     """Tests for the citations command in augmented_generation_cli.py"""
 
     def test_citations_help_message(self):
+        """Verify citations --help shows args and defaults."""
         venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
         python_exec = str(venv_python) if venv_python.exists() else "python3"
 
@@ -506,12 +507,14 @@ class TestCitationsCLI:
         assert "Default: 5" in result.stdout
 
     def test_successful_citations_execution(self):
+        """Ensure citations command runs and prints results + answer."""
         stdout, stderr, code = run_citations("action movies", limit=3)
         assert code == 0
         assert "Search Results:" in stdout
         assert "LLM Citations:" in stdout
 
     def test_citations_search_results_format(self):
+        """Confirm search results are bullet-listed before the answer."""
         stdout, stderr, code = run_citations("space", limit=3)
         assert code == 0
         lines = stdout.split("\n")
@@ -522,6 +525,7 @@ class TestCitationsCLI:
         assert len(bullet_lines) > 0
 
     def test_citations_llm_answer_present(self):
+        """Check that LLM Citations section includes non-empty text."""
         stdout, stderr, code = run_citations("comedy", limit=2)
         assert code == 0
         assert "LLM Citations:" in stdout
@@ -531,6 +535,7 @@ class TestCitationsCLI:
         assert len(answer_lines) > 0
 
     def test_citations_custom_limit_parameter(self):
+        """Validate --limit changes number of listed search results."""
         stdout_2, stderr_2, code_2 = run_citations("thriller", limit=2)
         stdout_4, stderr_4, code_4 = run_citations("thriller", limit=4)
         assert code_2 == 0
@@ -540,18 +545,21 @@ class TestCitationsCLI:
         assert bullet_count_4 >= bullet_count_2
 
     def test_citations_query_with_special_characters(self):
+        """Ensure special characters in queries are handled gracefully."""
         stdout, stderr, code = run_citations("action: adventure & drama")
         assert code == 0
         assert "Search Results:" in stdout
         assert "LLM Citations:" in stdout
 
     def test_citations_default_limit_value(self):
+        """Confirm default --limit=5 behavior when not specified."""
         stdout, stderr, code = run_citations("adventure")
         assert code == 0
         bullet_count = len([l for l in stdout.split("\n") if l.strip().startswith("-")])
         assert bullet_count <= 5
 
     def test_citations_output_structure(self):
+        """Verify output ordering: Search Results then LLM Citations."""
         stdout, stderr, code = run_citations("fantasy", limit=2)
         assert code == 0
         assert stdout.count("Search Results:") == 1
@@ -562,6 +570,7 @@ class TestCitationsCLI:
         assert ans_idx > search_idx
 
     def test_citations_output_contains_movie_titles(self):
+        """Ensure titles in Search Results are non-empty and unique."""
         stdout, stderr, code = run_citations("spy thriller", limit=3)
         assert code == 0
         lines = stdout.split("\n")
