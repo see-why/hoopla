@@ -197,7 +197,7 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
                 for title in result_titles:
                     print(f"  - {title}")
                 
-                print(f"\nSummary:")
+                print(f"\nLLM Summary:")
                 print(response.text)
             
             except Exception as e:
