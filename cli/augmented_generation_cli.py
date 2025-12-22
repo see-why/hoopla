@@ -165,6 +165,12 @@ def main():
     summarize_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
     summarize_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and summarize. Default: 5")
 
+    citations_parser = subparsers.add_parser(
+        "citations", help="Answer query and include citations"
+    )
+    citations_parser.add_argument("query", type=str, help="Search query for citations mode")
+    citations_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve. Default: 5")
+
     args = parser.parse_args()
 
     match args.command:
@@ -194,11 +200,10 @@ Provide a comprehensive answer that addresses the query:"""
         
         case "summarize":
             query = args.query
-            k = args.k
             limit = args.limit
             
             # Load dataset and perform search
-            docs, results = load_dataset_and_search(query, k=k, limit=limit)
+            docs, results = load_dataset_and_search(query, k=60, limit=limit)
             
             # Format search results
             docs_string, result_titles = format_search_results(docs, results)
@@ -218,6 +223,40 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
             
             # Generate and print response
             generate_and_print_response(prompt, result_titles, "LLM Summary")
+
+        case "citations":
+            query = args.query
+            limit = args.limit
+            
+            # Load dataset and perform search (use default k=60)
+            docs, results = load_dataset_and_search(query, k=60, limit=limit)
+            
+            # Format search results
+            documents, result_titles = format_search_results(docs, results)
+            
+            # Build the citations prompt
+            prompt = f"""Answer the question or provide information based on the provided documents.
+
+This should be tailored to Hoopla users. Hoopla is a movie streaming service.
+
+If not enough information is available to give a good answer, say so but give as good of an answer as you can while citing the sources you have.
+
+Query: {query}
+
+Documents:
+{documents}
+
+Instructions:
+- Provide a comprehensive answer that addresses the query
+- Cite sources using [1], [2], etc. format when referencing information
+- If sources disagree, mention the different viewpoints
+- If the answer isn't in the documents, say "I don't have enough information"
+- Be direct and informative
+
+Answer:"""
+            
+            # Generate and print response
+            generate_and_print_response(prompt, result_titles, "LLM Citations")
         
         case _:
             parser.print_help()
