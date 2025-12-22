@@ -162,7 +162,6 @@ def main():
         "summarize", help="Summarize search results"
     )
     summarize_parser.add_argument("query", type=str, help="Search query for summarization")
-    summarize_parser.add_argument("--k", type=int, default=60, help="RRF constant parameter. Default: 60")
     summarize_parser.add_argument("--limit", type=int, default=5, help="Number of results to retrieve and summarize. Default: 5")
 
     citations_parser = subparsers.add_parser(
