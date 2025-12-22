@@ -54,6 +54,7 @@ def run_search(query):
 
 
 def test_case_insensitive_and_punctuation():
+    """Verify search is case-insensitive and ignores punctuation in titles."""
     movies = [
         {"id": 2, "title": "Star-Wars: A New Hope"},
         {"id": 1, "title": "star wars: the empire strikes back"},
@@ -73,6 +74,7 @@ def test_case_insensitive_and_punctuation():
 
 
 def test_truncate_results_and_sort():
+    """Ensure results are sorted and truncated to a maximum of 5 entries."""
     # Create 7 matches to ensure truncation to 5
     movies = [{"id": i, "title": f"Match {i}"} for i in range(10, 3, -1)]
     write_movies(movies)
@@ -86,6 +88,7 @@ def test_truncate_results_and_sort():
 
 
 def test_no_results():
+    """Return a friendly message when no documents match the query."""
     write_movies([{"id": 1, "title": "Something Else"}])
     rc, out, err = run_search("nope")
     assert rc == 0
@@ -93,6 +96,7 @@ def test_no_results():
 
 
 def test_token_partial_match_great_bear():
+    """Confirm token normalization enables partial matching (e.g., Great→Big Bear)."""
     # Verify that a query like "Great Bear" matches a title "Big Bear"
     movies = [
         {"id": 1, "title": "Big Bear"},
@@ -123,6 +127,7 @@ def parse_results(out):
 
 
 def test_boolean_and_or_not():
+    """Validate boolean operators AND/OR/NOT affect result set as expected."""
     # Setup a small set of movies to test boolean logic
     movies = [
         {"id": 1, "title": "Bear Wizard"},
