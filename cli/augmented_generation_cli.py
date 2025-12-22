@@ -231,7 +231,7 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
             docs, results = load_dataset_and_search(query, k=60, limit=limit)
             
             # Format search results
-            documents, result_titles = format_search_results(docs, results)
+            docs_string, result_titles = format_search_results(docs, results)
             
             # Build the citations prompt
             prompt = f"""Answer the question or provide information based on the provided documents.
@@ -243,7 +243,7 @@ If not enough information is available to give a good answer, say so but give as
 Query: {query}
 
 Documents:
-{documents}
+{docs_string}
 
 Instructions:
 - Provide a comprehensive answer that addresses the query
