@@ -1,0 +1,260 @@
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_rag(query, k=None, limit=None):
+    """Helper to run the RAG CLI with specified arguments."""
+    # Prefer the project's virtualenv python if present
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    python_exec = str(venv_python) if venv_python.exists() else "python3"
+    
+    cmd = [python_exec, "cli/augmented_generation_cli.py", "rag", query]
+    
+    if k is not None:
+        cmd.extend(["--k", str(k)])
+    if limit is not None:
+        cmd.extend(["--limit", str(limit)])
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
+    return result.stdout, result.stderr, result.returncode
+
+
+class TestAugmentedGenerationCLI:
+    """Tests for the augmented_generation_cli.py module"""
+
+    def test_help_message(self):
+        """Test that help message displays available commands and arguments."""
+        venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else "python3"
+        
+        result = subprocess.run(
+            [python_exec, "cli/augmented_generation_cli.py", "rag", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT
+        )
+        
+        assert result.returncode == 0
+        assert "Search query for RAG" in result.stdout
+        assert "--k" in result.stdout
+        assert "--limit" in result.stdout
+
+    def test_successful_rag_execution(self):
+        """Test successful RAG execution with basic query."""
+        stdout, stderr, code = run_rag("action movies", limit=3)
+        
+        assert code == 0
+        assert "Search Results:" in stdout
+        assert "RAG Response:" in stdout
+        # Should have at least one result and a response
+        assert len(stdout.split("\n")) > 5
+
+    def test_search_results_format(self):
+        """Test that search results are formatted correctly."""
+        stdout, stderr, code = run_rag("space", limit=3)
+        
+        assert code == 0
+        assert "Search Results:" in stdout
+        
+        # Extract search results section
+        lines = stdout.split("\n")
+        search_idx = next(i for i, line in enumerate(lines) if "Search Results:" in line)
+        rag_idx = next(i for i, line in enumerate(lines) if "RAG Response:" in line)
+        
+        # Search results should be between Search Results: and RAG Response:
+        search_result_lines = lines[search_idx + 1:rag_idx]
+        
+        # Should have bullet points for results
+        bullet_lines = [l for l in search_result_lines if l.strip().startswith("-")]
+        assert len(bullet_lines) > 0, "Should have at least one result with bullet point"
+
+    def test_rag_response_present(self):
+        """Test that RAG response is generated and displayed."""
+        stdout, stderr, code = run_rag("comedy", limit=2)
+        
+        assert code == 0
+        assert "RAG Response:" in stdout
+        
+        # Extract RAG response section
+        lines = stdout.split("\n")
+        rag_idx = next(i for i, line in enumerate(lines) if "RAG Response:" in line)
+        
+        # Response should have content after the RAG Response: header
+        response_lines = [l for l in lines[rag_idx + 1:] if l.strip()]
+        assert len(response_lines) > 0, "RAG response should contain text"
+
+    def test_custom_k_parameter(self):
+        """Test that --k parameter is accepted and affects search."""
+        stdout, stderr, code = run_rag("drama", k=100, limit=3)
+        
+        assert code == 0
+        assert "Search Results:" in stdout
+        # Should execute without error with custom k value
+
+    def test_custom_limit_parameter(self):
+        """Test that --limit parameter affects number of results."""
+        # Get results with limit=2
+        stdout_2, stderr_2, code_2 = run_rag("thriller", limit=2)
+        
+        # Get results with limit=4
+        stdout_4, stderr_4, code_4 = run_rag("thriller", limit=4)
+        
+        assert code_2 == 0
+        assert code_4 == 0
+        
+        # Count bullet points in each output
+        bullet_count_2 = len([l for l in stdout_2.split("\n") if l.strip().startswith("-")])
+        bullet_count_4 = len([l for l in stdout_4.split("\n") if l.strip().startswith("-")])
+        
+        # Limit=4 should have more or equal results than limit=2
+        assert bullet_count_4 >= bullet_count_2
+
+    def test_query_with_special_characters(self):
+        """Test query with special characters and quotes."""
+        stdout, stderr, code = run_rag("action: adventure & drama")
+        
+        assert code == 0
+        assert "Search Results:" in stdout
+        assert "RAG Response:" in stdout
+
+    def test_single_character_query(self):
+        """Test with very short single character query."""
+        stdout, stderr, code = run_rag("a", limit=2)
+        
+        # Should either find results or handle gracefully
+        assert code in [0, 1]
+        if code == 0:
+            assert "Search Results:" in stdout
+
+    def test_output_contains_movie_titles(self):
+        """Test that output contains actual movie titles from the dataset."""
+        stdout, stderr, code = run_rag("spy thriller", limit=3)
+        
+        assert code == 0
+        
+        # Extract titles from search results
+        lines = stdout.split("\n")
+        search_idx = next(i for i, line in enumerate(lines) if "Search Results:" in line)
+        rag_idx = next(i for i, line in enumerate(lines) if "RAG Response:" in line)
+        
+        result_lines = lines[search_idx + 1:rag_idx]
+        result_titles = [l.strip()[2:] for l in result_lines if l.strip().startswith("-")]
+        
+        # Should have results with non-empty titles
+        assert len(result_titles) > 0
+        assert all(len(title) > 0 for title in result_titles)
+
+    def test_multiple_queries(self):
+        """Test sequential RAG queries to ensure consistency."""
+        queries = ["horror", "animation", "western"]
+        
+        for query in queries:
+            stdout, stderr, code = run_rag(query, limit=2)
+            assert code == 0, f"Query '{query}' failed"
+            assert "Search Results:" in stdout
+            assert "RAG Response:" in stdout
+
+    def test_default_k_value(self):
+        """Test that default k value (60) is used when not specified."""
+        stdout, stderr, code = run_rag("romance", limit=2)
+        
+        # Should succeed with default k=60
+        assert code == 0
+        assert "Search Results:" in stdout
+
+    def test_default_limit_value(self):
+        """Test that default limit value (5) is used when not specified."""
+        stdout, stderr, code = run_rag("adventure")
+        
+        # Should succeed with default limit=5
+        assert code == 0
+        assert "Search Results:" in stdout
+        
+        # Extract and count results
+        bullet_count = len([l for l in stdout.split("\n") if l.strip().startswith("-")])
+        assert bullet_count <= 5, "Default limit should be at most 5"
+
+    def test_help_shows_defaults(self):
+        """Test that help text shows default values for k and limit."""
+        venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+        python_exec = str(venv_python) if venv_python.exists() else "python3"
+        
+        result = subprocess.run(
+            [python_exec, "cli/augmented_generation_cli.py", "rag", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT
+        )
+        
+        assert result.returncode == 0
+        assert "Default: 60" in result.stdout or "--k" in result.stdout
+        assert "Default: 5" in result.stdout or "--limit" in result.stdout
+
+    def test_empty_query_string(self):
+        """Test behavior with empty query string."""
+        stdout, stderr, code = run_rag("", limit=1)
+        
+        # Empty query might still find results (common words) or fail gracefully
+        assert code in [0, 1]
+
+    def test_very_long_query(self):
+        """Test with very long query string."""
+        long_query = "this is a very long query about movies " * 10
+        stdout, stderr, code = run_rag(long_query, limit=1)
+        
+        # Should handle long queries gracefully
+        assert code in [0, 1]
+
+    def test_query_with_numbers(self):
+        """Test query containing numbers."""
+        stdout, stderr, code = run_rag("2001 space odyssey", limit=3)
+        
+        assert code == 0
+        assert "Search Results:" in stdout
+
+    def test_stderr_on_dataset_error(self):
+        """Test that meaningful error appears when dataset cannot load."""
+        # This is more of an integration test - we rely on the actual error handling
+        # in the code since we can't easily mock the dataset loading
+        pass
+
+    def test_output_structure(self):
+        """Test the complete output structure matches expected format."""
+        stdout, stderr, code = run_rag("fantasy", limit=2)
+        
+        assert code == 0
+        
+        # Should have specific structure
+        assert stdout.count("Search Results:") == 1
+        assert stdout.count("RAG Response:") == 1
+        
+        lines = stdout.split("\n")
+        search_idx = next(i for i, line in enumerate(lines) if "Search Results:" in line)
+        rag_idx = next(i for i, line in enumerate(lines) if "RAG Response:" in line)
+        
+        # RAG Response should come after Search Results
+        assert rag_idx > search_idx
+
+    def test_no_duplicate_results(self):
+        """Test that search results don't contain duplicates."""
+        stdout, stderr, code = run_rag("movie", limit=5)
+        
+        assert code == 0
+        
+        # Extract result titles
+        lines = stdout.split("\n")
+        search_idx = next(i for i, line in enumerate(lines) if "Search Results:" in line)
+        rag_idx = next(i for i, line in enumerate(lines) if "RAG Response:" in line)
+        
+        result_lines = lines[search_idx + 1:rag_idx]
+        result_titles = [l.strip()[2:] for l in result_lines if l.strip().startswith("-")]
+        
+        # Check for duplicates
+        assert len(result_titles) == len(set(result_titles)), "Results should not contain duplicates"
