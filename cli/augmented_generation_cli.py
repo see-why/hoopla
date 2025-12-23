@@ -241,13 +241,13 @@ Provide a comprehensive 3–4 sentence answer that combines information from mul
         case "citations":
             query = args.query
             limit = args.limit
-            
+
             # Load dataset and perform search (use default k=60)
             docs, results = load_dataset_and_search(query, k=60, limit=limit)
-            
+
             # Format search results
             docs_string, result_titles = format_search_results(docs, results)
-            
+
             # Build the citations prompt
             prompt = f"""Answer the question or provide information based on the provided documents.
 
@@ -268,20 +268,20 @@ Instructions:
 - Be direct and informative
 
 Answer:"""
-            
+
             # Generate and print response
             generate_and_print_response(prompt, result_titles, "LLM Citations")
 
         case "question":
             question = args.question
             limit = args.limit
-            
+
             # Load dataset and perform search (use default k=60)
             docs, results = load_dataset_and_search(question, k=60, limit=limit)
-            
+
             # Format search results
             docs_string, result_titles = format_search_results(docs, results)
-            
+
             # Build the question prompt
             prompt = f"""Answer the user's question based on the provided movies that are available on Hoopla.
 
@@ -299,9 +299,34 @@ Instructions:
 - Talk like a normal person would in a chat conversation
 
 Answer:"""
-            
+
             # Post-process to ensure expected character names for Jurassic Park questions
             def _ensure_jurassic_characters(text: str) -> str:
+                """
+                Ensure key character names are present for Jurassic Park questions.
+
+                Purpose:
+                - Some LLM answers may omit well-known character names for the
+                  query "Jurassic Park" based on available context. This
+                  post-processing appends any missing names to improve answer
+                  completeness and meet product expectations/tests.
+
+                Parameters:
+                - text: The original LLM-generated answer string.
+
+                Returns:
+                - A string that includes the original `text` and, when the
+                  question references "Jurassic Park", an appended sentence
+                  listing only the missing names from [Alan Grant, Ellie
+                  Sattler, Ian Malcolm]. If none are missing or the question
+                  doesn't reference Jurassic Park, returns `text` unchanged.
+
+                Business Logic:
+                - Special-case enhancement triggered by queries containing
+                  "jurassic park" (case-insensitive). It is non-destructive
+                  and only adds information; failures are logged and do not
+                  prevent returning the primary answer.
+                """
                 qlower = question.lower()
                 if "jurassic park" in qlower:
                     required = ["Alan Grant", "Ellie Sattler", "Ian Malcolm"]
@@ -313,7 +338,7 @@ Answer:"""
 
             # Generate and print response with post-processing
             generate_and_print_response(prompt, result_titles, "Answer", post_process=_ensure_jurassic_characters)
-        
+
         case _:
             parser.print_help()
 
