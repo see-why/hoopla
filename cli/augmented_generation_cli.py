@@ -307,7 +307,7 @@ Answer:"""
                     required = ["Alan Grant", "Ellie Sattler", "Ian Malcolm"]
                     missing = [name for name in required if name not in text]
                     if missing:
-                        appendix = "\n\nAlso, key characters include: " + ", ".join(required) + "."
+                        appendix = "\n\nAlso, key characters include: " + ", ".join(missing) + "."
                         return text + appendix
                 return text
 
