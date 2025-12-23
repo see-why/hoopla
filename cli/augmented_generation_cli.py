@@ -277,9 +277,8 @@ Answer:"""
             # Load dataset and perform search (use default k=60)
             docs, results = load_dataset_and_search(question, k=60, limit=limit)
             
-            # Format search results as context
+            # Format search results
             docs_string, result_titles = format_search_results(docs, results)
-            context = docs_string
             
             # Build the question prompt
             prompt = f"""Answer the user's question based on the provided movies that are available on Hoopla.
@@ -289,7 +288,7 @@ This should be tailored to Hoopla users. Hoopla is a movie streaming service.
 Question: {question}
 
 Documents:
-{context}
+{docs_string}
 
 Instructions:
 - Answer questions directly and concisely
