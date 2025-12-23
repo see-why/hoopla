@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
-import base64
 import mimetypes
 import os
 import sys
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
     # Read image bytes
     try:
         with open(args.image, "rb") as f:
-            image_bytes = f.read()
+            img = f.read()
     except Exception as e:
         print(f"Failed to read image file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -48,28 +48,22 @@ def main():
         "Make sure to:\n- Synthesize visual and textual information\n- Focus on movie-specific details (actors, scenes, style, etc.)\n- Return only the rewritten query, without any additional commentary"
     )
 
-    # Build request parts: image + original query text
-    inline_data = {
-        "mime_type": mime,
-        "data": base64.b64encode(image_bytes).decode("utf-8"),
-    }
+    # Build request parts: system prompt, image bytes, and stripped text query
+    parts = [
+        system_prompt,
+        types.Part.from_bytes(data=img, mime_type=mime),
+        args.query.strip(),
+    ]
 
     try:
         response = client.models.generate_content(
             model="gemini-2.0-flash-001",
-            system_instruction=system_prompt,
-            contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {"inline_data": inline_data},
-                        {"text": args.query},
-                    ],
-                }
-            ],
+            contents=parts,
         )
-        # Print only the rewritten query
-        print(response.text)
+        # Print rewritten query and token usage
+        print(f"Rewritten query: {response.text.strip()}")
+        if getattr(response, "usage_metadata", None) is not None:
+            print(f"Total tokens:    {response.usage_metadata.total_token_count}")
     except Exception as e:
         print(f"Error generating rewritten query: {e}", file=sys.stderr)
         sys.exit(1)
