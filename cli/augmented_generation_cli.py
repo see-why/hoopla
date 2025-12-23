@@ -96,9 +96,11 @@ def generate_and_print_response(prompt, result_titles, response_label, post_proc
         if post_process is not None:
             try:
                 text = post_process(text)
-            except Exception:
-                # If post-processing fails, fall back to original text
-                pass
+            except Exception as e:
+                # Post-processing is non-critical; log and continue with original text
+                # Rationale: Users should still receive the LLM's primary answer even if
+                # optional formatting/enhancements fail.
+                print(f"Post-processing failed: {e}", file=sys.stderr)
         
         # Print results and response in the requested format
         print("Search Results:")
