@@ -8,10 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
-data/movies.json
 cache/docmap.pkl
 cache/index.pkl
-data/movies 2.json
 cache/term_frequencies.pkl
 cache/doc_lengths.pkl
 cli/cache/movie_embeddings.npy
@@ -19,4 +17,4 @@ cache/movie_embeddings.npy
 cache/chunk_metadata.json
 cache/chunk_embeddings.npy
 .env
-data/golden_dataset.json
+data/*
