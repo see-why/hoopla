@@ -59,13 +59,12 @@ class MultimodalSearch:
             FileNotFoundError: If the image file does not exist
             PIL.UnidentifiedImageError: If the file is not a valid image format
         """
-        # Load image from path using PIL
-        image = Image.open(image_path)
-        
-        # Generate embedding by passing image to model
-        # encode() returns a list of embeddings; extract the first (only) element
-        embeddings = self.model.encode([image], convert_to_tensor=False)
-        return embeddings[0]
+        # Load image from path using PIL with context manager to ensure proper cleanup
+        with Image.open(image_path) as image:
+            # Generate embedding by passing image to model
+            # encode() returns a list of embeddings; extract the first (only) element
+            embeddings = self.model.encode([image], convert_to_tensor=False)
+            return embeddings[0]
 
 
 def verify_image_embedding(image_path: str) -> None:
