@@ -1,4 +1,33 @@
 #!/usr/bin/env python3
+"""
+Multimodal image analysis and query rewriting CLI.
+
+This script takes an image file and a text query, then uses Gemini 2.0 Flash
+to analyze the image and rewrite the query to improve search results from a
+movie database. The rewritten query synthesizes visual and textual information
+to focus on movie-specific details such as actors, scenes, and style.
+
+Purpose:
+- Leverage multimodal AI (image + text) for intelligent query enhancement
+- Improve movie search relevance by incorporating visual context
+- Provide token usage metrics for API monitoring
+
+Usage:
+    python cli/describe_image_cli.py --image <path> --query <text>
+
+Arguments:
+    --image: Path to the image file (required)
+    --query: Text query to rewrite based on the image (required)
+
+Output:
+    Prints the rewritten query and total tokens used by the Gemini API.
+    Exits with code 1 on file not found or API errors.
+
+Dependencies:
+    - GEMINI_API_KEY environment variable must be set for API access
+    - google-genai library for Gemini API interaction
+    - mimetypes module for MIME type detection
+"""
 
 import argparse
 import mimetypes
