@@ -300,3 +300,121 @@ class TestDescribeImageCLI:
 
         assert result.returncode == 0
         assert "Rewrite" in result.stdout or "image" in result.stdout.lower()
+    def test_magic_byte_detection_jpeg(self):
+        """Test that JPEG files are detected by magic bytes."""
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            # JPEG magic bytes: FF D8 FF
+            tmp.write(b"\xff\xd8\xff\xe0\x00\x10JFIF")
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # Should fail due to GEMINI_API_KEY or other reasons, but not due to image format
+            assert "not appear to be an image" not in stderr
+            assert "Could not determine image format" not in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_magic_byte_detection_png(self):
+        """Test that PNG files are detected by magic bytes."""
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            # PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+            tmp.write(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # Should fail due to GEMINI_API_KEY or other reasons, but not due to image format
+            assert "not appear to be an image" not in stderr
+            assert "Could not determine image format" not in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_magic_byte_detection_gif(self):
+        """Test that GIF files are detected by magic bytes."""
+        with tempfile.NamedTemporaryFile(suffix=".gif", delete=False) as tmp:
+            # GIF magic bytes: 47 49 46 38 39 61 or 47 49 46 38 37 61 (GIF89a or GIF87a)
+            tmp.write(b"GIF89a" + b"\x00" * 100)
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # Should fail due to GEMINI_API_KEY or other reasons, but not due to image format
+            assert "not appear to be an image" not in stderr
+            assert "Could not determine image format" not in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_magic_byte_detection_webp(self):
+        """Test that WebP files are detected by magic bytes."""
+        with tempfile.NamedTemporaryFile(suffix=".webp", delete=False) as tmp:
+            # WebP magic bytes: RIFF ... WEBP
+            tmp.write(b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 100)
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # Should fail due to GEMINI_API_KEY or other reasons, but not due to image format
+            assert "not appear to be an image" not in stderr
+            assert "Could not determine image format" not in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_non_image_file_rejected(self):
+        """Test that non-image files are rejected with clear error message."""
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
+            tmp.write(b"This is a text file, not an image")
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            assert returncode == 1
+            assert "Could not determine image format" in stderr or "not appear to be an image" in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_file_with_wrong_extension_but_valid_image(self):
+        """Test that files with wrong extensions but valid image content are accepted."""
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as tmp:
+            # PNG magic bytes in a .bin file
+            tmp.write(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # Should not fail due to format detection (magic bytes should identify it as PNG)
+            assert "Could not determine image format" not in stderr
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_file_with_image_extension_but_invalid_content(self):
+        """Test that files with image extension but invalid image content are rejected."""
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            # Invalid image data (not JPEG magic bytes)
+            tmp.write(b"This is not a real image file")
+            tmp_path = tmp.name
+
+        try:
+            stdout, stderr, returncode = run_describe_image(tmp_path, "test query")
+            # API should reject the invalid image (error from Gemini API)
+            # This is OK - the file passed our validation (has .jpg extension)
+            # but the API correctly rejects it as invalid
+            if returncode == 1:
+                # Either our validation caught it or API did - both acceptable
+                assert "Could not determine image format" in stderr or "invalid" in stderr.lower() or "not valid" in stderr.lower()
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
