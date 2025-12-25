@@ -74,11 +74,8 @@ def main():
     elif args.command == "image_search":
         try:
             results = image_search_command(args.image_path)
-            print(f"\nTop {len(results)} results for image: {args.image_path}\n")
-            for i, result in enumerate(results, 1):
-                print(f"{i}. {result['title']} (ID: {result['id']})")
-                print(f"   Description: {result['description']}")
-                print(f"   Similarity: {result['similarity']:.3f}\n")
+            for result in results:
+                print(f"{result['title']} (similarity: {result['similarity']:.3f})")
         except FileNotFoundError:
             print(f"Error: Image file not found: {args.image_path}", file=sys.stderr)
             sys.exit(1)
