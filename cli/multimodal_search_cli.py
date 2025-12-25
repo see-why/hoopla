@@ -24,39 +24,9 @@ except ImportError:
 
 def main():
     """
-    Multimodal search CLI entry point.
-
-    Purpose:
-    - Provides command-line interface for image embedding operations.
-    - Supports CLIP model-based image analysis and embedding generation.
-    - Enables verification of image embedding functionality.
-
-    Arguments:
-    - image_path (str): Path to an image file for embedding generation.
-
-    Behavior:
-    - Parses command-line arguments to extract image path.
-    - Validates that the image file exists and is readable.
-    - Generates embedding using CLIP model via MultimodalSearch.
-    - Displays embedding dimensions in human-readable format.
-    - Exits with error code 1 on file not found or API failures.
-
-    Output Format:
-    Embedding shape: <number> dimensions
-
-    Dependencies:
-    - PIL (Pillow) for image file loading.
-    - SentenceTransformer for CLIP model access.
-    - MultimodalSearch from cli.lib.multimodal_search for embedding generation.
-
-    Exit Codes:
-    - 0: Successfully generated and displayed embedding information.
-    - 1: Image file not found, cannot be read, or embedding generation fails.
-
-    Notes:
-    - Supported image formats: JPEG, PNG, WebP, GIF, BMP, ICO.
-    - CLIP model (default: clip-ViT-B-32) generates 512-dimensional embeddings.
-    - Embedding generation may take several seconds depending on model size and hardware.
+    Parse CLI arguments and execute the requested multimodal search command.
+    
+    Supported commands: verify_image_embedding
     """
     parser = argparse.ArgumentParser(
         description="Multimodal search CLI for image embedding operations"
