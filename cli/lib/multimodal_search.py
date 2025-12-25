@@ -22,7 +22,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 try:
     from cli.lib.semantic_search import load_movies_dataset
 except ImportError:
-    from semantic_search import load_movies_dataset
+    try:
+        from lib.semantic_search import load_movies_dataset
+    except ImportError:
+        from semantic_search import load_movies_dataset
 
 
 class MultimodalSearch:
