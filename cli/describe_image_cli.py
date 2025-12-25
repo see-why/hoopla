@@ -2,6 +2,7 @@
 
 import argparse
 import mimetypes
+import os
 import sys
 
 from google.genai import types
