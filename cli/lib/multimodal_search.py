@@ -12,6 +12,7 @@ Functions:
     verify_image_embedding: Utility to validate image embedding generation and inspect embedding dimensions
 """
 
+import numpy as np
 from PIL import Image
 from sentence_transformers import SentenceTransformer
 
@@ -39,7 +40,7 @@ class MultimodalSearch:
         """
         self.model = SentenceTransformer(model_name)
     
-    def embed_image(self, image_path: str) -> list:
+    def embed_image(self, image_path: str) -> np.ndarray:
         """
         Generate embedding for an image file using the CLIP model.
         
