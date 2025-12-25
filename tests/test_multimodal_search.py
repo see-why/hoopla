@@ -9,7 +9,7 @@ import tempfile
 from PIL import Image
 import numpy as np
 
-from cli.lib.multimodal_search import MultimodalSearch, verify_image_embedding
+from cli.lib.multimodal_search import MultimodalSearch, verify_image_embedding, image_search_command
 
 
 class TestMultimodalSearch:
@@ -25,6 +25,21 @@ class TestMultimodalSearch:
         """Test MultimodalSearch initialization with custom model name."""
         ms = MultimodalSearch(model_name="clip-ViT-B-32")
         assert ms.model is not None
+    
+    def test_multimodal_search_with_documents(self):
+        """Test MultimodalSearch initialization with documents."""
+        documents = [
+            {'id': '1', 'title': 'Movie 1', 'description': 'A great film'},
+            {'id': '2', 'title': 'Movie 2', 'description': 'Another great film'},
+        ]
+        ms = MultimodalSearch(documents=documents)
+        assert ms.documents == documents
+        assert len(ms.texts) == 2
+        assert ms.texts[0] == 'Movie 1: A great film'
+        assert ms.texts[1] == 'Movie 2: Another great film'
+        assert ms.text_embeddings is not None
+        assert len(ms.text_embeddings) == 2
+        assert ms.text_embeddings.shape[1] == 512  # CLIP-ViT-B-32 dimension
     
     def test_embed_image(self):
         """Test image embedding generation."""
@@ -62,6 +77,60 @@ class TestMultimodalSearch:
         except FileNotFoundError:
             pass  # Expected
     
+    def test_search_with_image_no_documents(self):
+        """Test search_with_image raises error when no documents provided."""
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img = Image.new('RGB', (64, 64), color='red')
+            img.save(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            ms = MultimodalSearch()  # No documents
+            try:
+                ms.search_with_image(tmp_path)
+                assert False, "Should raise ValueError"
+            except ValueError as e:
+                assert "documents" in str(e).lower()
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    
+    def test_search_with_image(self):
+        """Test image search with sample documents."""
+        documents = [
+            {'id': '1', 'title': 'Red Movie', 'description': 'A red colored film'},
+            {'id': '2', 'title': 'Blue Movie', 'description': 'A blue colored film'},
+            {'id': '3', 'title': 'Green Movie', 'description': 'A green colored film'},
+            {'id': '4', 'title': 'Yellow Movie', 'description': 'A yellow colored film'},
+            {'id': '5', 'title': 'Purple Movie', 'description': 'A purple colored film'},
+        ]
+        
+        # Create a temporary test image
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img = Image.new('RGB', (64, 64), color='red')
+            img.save(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            ms = MultimodalSearch(documents=documents)
+            results = ms.search_with_image(tmp_path, top_k=3)
+            
+            # Verify results structure
+            assert len(results) == 3
+            assert results[0]['similarity'] >= results[1]['similarity'] >= results[2]['similarity']
+            
+            for result in results:
+                assert 'id' in result
+                assert 'title' in result
+                assert 'description' in result
+                assert 'similarity' in result
+                assert 0 <= result['similarity'] <= 1
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    
     def test_verify_image_embedding(self):
         """Test verify_image_embedding function."""
         # Create a temporary test image
@@ -77,3 +146,4 @@ class TestMultimodalSearch:
             import os
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
