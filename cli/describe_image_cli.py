@@ -2,12 +2,14 @@
 
 import argparse
 import mimetypes
-import os
 import sys
 
-from dotenv import load_dotenv
-from google import genai
 from google.genai import types
+
+try:
+    from cli.hybrid_search_cli import get_gemini_client
+except ImportError:
+    from hybrid_search_cli import get_gemini_client
 
 
 def main():
@@ -34,13 +36,8 @@ def main():
         print(f"Failed to read image file: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Set up Gemini client using API key
-    load_dotenv()
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
-        sys.exit(1)
-    client = genai.Client(api_key=api_key)
+    # Set up Gemini client using reusable helper
+    client = get_gemini_client()
 
     # System prompt describing the task
     system_prompt = (
