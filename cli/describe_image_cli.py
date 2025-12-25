@@ -72,7 +72,7 @@ def main():
     - GEMINI_API_KEY environment variable must be set for Gemini API access.
     - google-genai library for Gemini 2.0 Flash multimodal API.
     - mimetypes module for MIME type detection (Python standard library).
-    - get_gemini_client() from hybrid_search_cli for reusable client initialization.
+    - get_gemini_client() from hybrid_search_cli for reusable client initialization (raises ValueError if API key not set).
 
     Exit Codes:
     - 0: Successfully rewrote and printed the query.
@@ -108,7 +108,11 @@ def main():
         sys.exit(1)
 
     # Set up Gemini client using reusable helper
-    client = get_gemini_client()
+    try:
+        client = get_gemini_client()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # System prompt describing the task
     system_prompt = (

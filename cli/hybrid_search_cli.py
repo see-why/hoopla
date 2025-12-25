@@ -36,13 +36,13 @@ def get_gemini_client():
     Initialize and return a Gemini API client.
     
     Loads the API key from environment variables using dotenv and creates a Gemini client.
-    Exits with an error if the API key is not set.
+    Raises an error if the API key is not set.
     
     Returns:
         genai.Client: Initialized Gemini API client
     
     Raises:
-        SystemExit: If GEMINI_API_KEY environment variable is not set
+        ValueError: If GEMINI_API_KEY environment variable is not set
     """
     from dotenv import load_dotenv
     from google import genai
@@ -50,8 +50,7 @@ def get_gemini_client():
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        print("Error: GEMINI_API_KEY environment variable is not set", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError("GEMINI_API_KEY environment variable is not set")
     
     return genai.Client(api_key=api_key)
 
@@ -429,7 +428,11 @@ def main() -> None:
             # Handle query enhancement
             query = args.query
             if args.enhance in ["spell", "rewrite", "expand"]:
-                client = get_gemini_client()
+                try:
+                    client = get_gemini_client()
+                except ValueError as e:
+                    print(f"Error: {e}", file=sys.stderr)
+                    sys.exit(1)
                 
                 if args.enhance == "spell":
                     prompt = f"""Fix any spelling errors in this movie search query.
@@ -519,7 +522,11 @@ Expanded terms:"""
             
             # Apply individual reranking if specified
             if args.rerank_method == "individual" and results:
-                client = get_gemini_client()
+                try:
+                    client = get_gemini_client()
+                except ValueError as e:
+                    print(f"Error: {e}", file=sys.stderr)
+                    sys.exit(1)
                 
                 print(f"Reranking {len(results)} results to return top {args.limit}...")
                 
@@ -613,7 +620,11 @@ Score:"""
             
             # Apply batch reranking if specified
             elif args.rerank_method == "batch" and results:
-                client = get_gemini_client()
+                try:
+                    client = get_gemini_client()
+                except ValueError as e:
+                    print(f"Error: {e}", file=sys.stderr)
+                    sys.exit(1)
                 
                 print(f"Reranking {len(results)} results to return top {args.limit}...")
                 
