@@ -43,6 +43,47 @@ except ImportError:
 
 
 def main():
+    """
+    Multimodal query rewriting CLI entry point using image analysis.
+
+    Purpose:
+    - Analyzes an image using Gemini 2.0 Flash multimodal capabilities.
+    - Rewrites a text query by synthesizing visual and textual information.
+    - Improves search query specificity by incorporating visual context from the image.
+
+    Arguments:
+    - --image (str): Required. Path to an image file (JPEG, PNG, WebP, GIF).
+    - --query (str): Required. Text query to rewrite based on the provided image.
+
+    Behavior:
+    - Validates that the image file exists and is readable.
+    - Detects MIME type automatically using mimetypes.guess_type(); defaults to image/jpeg.
+    - Reads image file in binary mode.
+    - Constructs a multimodal request with system prompt, image bytes, and query text.
+    - Sends request to Gemini 2.0 Flash model via google-genai client.
+    - Extracts and prints the rewritten query from the response.
+    - Optionally displays token usage metrics if available in response metadata.
+
+    Output Format:
+    Rewritten query: <Synthesized query incorporating visual and textual information>
+    Total tokens:    <Token count (optional)>
+
+    Dependencies:
+    - GEMINI_API_KEY environment variable must be set for Gemini API access.
+    - google-genai library for Gemini 2.0 Flash multimodal API.
+    - mimetypes module for MIME type detection (Python standard library).
+    - get_gemini_client() from hybrid_search_cli for reusable client initialization.
+
+    Exit Codes:
+    - 0: Successfully rewrote and printed the query.
+    - 1: Image file not found, cannot be read, or API call fails.
+
+    Notes:
+    - Supported image formats: JPEG, PNG, WebP, GIF (determined by file extension).
+    - Unknown file extensions default to image/jpeg MIME type.
+    - System prompt focuses on movie-specific details for Hoopla streaming context.
+    - Query rewriting synthesizes visual details (scenes, actors, style) with text input.
+    """
     parser = argparse.ArgumentParser(description="Rewrite a text query based on an image")
     parser.add_argument("--image", required=True, help="Path to the image file")
     parser.add_argument("--query", required=True, help="Text query to rewrite based on the image")
