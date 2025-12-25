@@ -13,7 +13,6 @@ Functions:
     image_search_command: Search movie database using an image and return top matching movies
 """
 
-from pathlib import Path
 import numpy as np
 from PIL import Image
 from sentence_transformers import SentenceTransformer
