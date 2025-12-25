@@ -62,7 +62,7 @@ class MultimodalSearch:
         # Load image from path using PIL with context manager to ensure proper cleanup
         with Image.open(image_path) as image:
             # Generate embedding by passing image to model
-            # encode() returns a list of embeddings; extract the first (only) element
+            # encode() returns a numpy array of embeddings; extract the first (only) element
             embeddings = self.model.encode([image], convert_to_tensor=False)
             return embeddings[0]
 
