@@ -78,7 +78,7 @@ def main():
             for i, result in enumerate(results, 1):
                 print(f"{i}. {result['title']} (ID: {result['id']})")
                 print(f"   Description: {result['description']}")
-                print(f"   Similarity: {result['similarity']:.4f}\n")
+                print(f"   Similarity: {result['similarity']:.3f}\n")
         except FileNotFoundError:
             print(f"Error: Image file not found: {args.image_path}", file=sys.stderr)
             sys.exit(1)
