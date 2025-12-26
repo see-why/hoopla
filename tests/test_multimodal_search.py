@@ -146,4 +146,94 @@ class TestMultimodalSearch:
             import os
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
-
+    
+    def test_image_search_command_success(self):
+        """Test image_search_command with valid image."""
+        # Create a temporary test image
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img = Image.new('RGB', (64, 64), color='green')
+            img.save(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            # This should load the actual movies dataset and search
+            results = image_search_command(tmp_path, top_k=3)
+            
+            # Verify results structure
+            assert isinstance(results, list)
+            assert len(results) <= 3  # Should return at most top_k results
+            
+            # Verify each result has required fields
+            for result in results:
+                assert 'id' in result
+                assert 'title' in result
+                assert 'description' in result
+                assert 'similarity' in result
+                assert isinstance(result['similarity'], float)
+                assert 0 <= result['similarity'] <= 1
+            
+            # Verify results are sorted by similarity (descending)
+            if len(results) > 1:
+                for i in range(len(results) - 1):
+                    assert results[i]['similarity'] >= results[i + 1]['similarity']
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    
+    def test_image_search_command_custom_top_k(self):
+        """Test image_search_command with custom top_k parameter."""
+        # Create a temporary test image
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img = Image.new('RGB', (128, 128), color='orange')
+            img.save(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            # Request 10 results
+            results = image_search_command(tmp_path, top_k=10)
+            
+            # Should return at most 10 results
+            assert len(results) <= 10
+            assert isinstance(results, list)
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    
+    def test_image_search_command_file_not_found(self):
+        """Test image_search_command raises FileNotFoundError for non-existent image."""
+        try:
+            image_search_command("/nonexistent/path/to/image.jpg")
+            assert False, "Should raise FileNotFoundError"
+        except FileNotFoundError:
+            pass  # Expected
+    
+    def test_image_search_command_dataset_error(self, monkeypatch):
+        """Test image_search_command raises RuntimeError when dataset loading fails."""
+        # Create a valid test image
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            img = Image.new('RGB', (64, 64), color='cyan')
+            img.save(tmp.name)
+            tmp_path = tmp.name
+        
+        try:
+            # Mock load_movies_dataset to simulate failure
+            def mock_load_movies_dataset():
+                return None, Exception("Dataset load error"), "/fake/path/movies.json"
+            
+            # Patch the load_movies_dataset function
+            import cli.lib.multimodal_search as ms_module
+            monkeypatch.setattr(ms_module, 'load_movies_dataset', mock_load_movies_dataset)
+            
+            # Should raise RuntimeError with dataset loading error
+            try:
+                image_search_command(tmp_path)
+                assert False, "Should raise RuntimeError"
+            except RuntimeError as e:
+                assert "Failed to load movies dataset" in str(e)
+                assert "Dataset load error" in str(e)
+        finally:
+            import os
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
