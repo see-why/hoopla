@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "nltk==3.9.1",
+    "nltk==3.9.4",
     "sentence-transformers",
     "numpy",
     "python-dotenv>=1.2.1",
